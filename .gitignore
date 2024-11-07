@@ -1,0 +1,6 @@
+tlvs
+tags
+cscope.*
+*.o
+*.swp
+*.swo
