@@ -22,7 +22,7 @@ struct tlv_device *tlvd_open(const char *file_name, int pref_size)
 	struct tlv_device *tlvd;
 	struct stat fs;
 	int fd = -1;
-	int file_init, file_size;
+	int file_init, file_size, last_size;
 
 	tlvd = malloc(sizeof(*tlvd));
 	if (!tlvd) {
@@ -63,6 +63,10 @@ struct tlv_device *tlvd_open(const char *file_name, int pref_size)
 		perror("mmap() failed");
 		goto fail;
 	}
+
+	last_size = fs.st_size;
+	while (last_size < pref_size)
+		((char *)tlvd->base)[last_size++] = 0xFF;
 
 	return tlvd;
 fail:
