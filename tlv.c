@@ -10,9 +10,13 @@
 #define TLV_EMPTY 0xFF
 #define TLV_PAD 0x00
 
-#define TLV_DBG(tlv) tlv->type, tlv->length, ((void *)tlv - (void *)tlvs->base)
+#define TLV_PROPS(tlv) tlv->type, tlv->length, ((void *)tlv - (void *)tlvs->base)
 
-#define pinfo printf
+#ifdef DEBUG
+#define TLV_DEBUG(op, tlv) fprintf(stderr, op " TLV[%x] data # %i @ 0x%02lx\n", TLV_PROPS(tlv))
+#else
+#define TLV_DEBUG(op, tlv)
+#endif
 
 struct tlv_store *tlvs_init(void *mem, int len)
 {
@@ -153,7 +157,7 @@ static int tlvs_add_tail(struct tlv_store *tlvs, uint8_t type, uint16_t length, 
 	tlv->type = type;
 	tlv->length = length;
 	memcpy(tlv->value, value, length);
-	pinfo("New TLV[%x] data # %i @ 0x%02lx\n", TLV_DBG(tlv));
+	TLV_DEBUG("New", tlv);
 	return 0;
 }
 
@@ -182,7 +186,7 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 
 	if (tlv->length == length) {
 		memcpy(tlv->value, value, length);
-		pinfo("Set TLV[%x] data # %i @ 0x%02lx\n", TLV_DBG(tlv));
+		TLV_DEBUG("Set", tlv);
 		return 0;
 	}
 
@@ -192,7 +196,7 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 	if (tlv->length > length) {
 		memcpy(tlv->value, value, length);
 		tlv->length = length;
-		pinfo("Set TLV[%x] data # %i @ 0x%02lx\n", TLV_DBG(tlv));
+		TLV_DEBUG("Set", tlv);
 		return 0;
 	} else if (tlv->length < length) {
 		memset(tlv, TLV_PAD, sizeof(*tlv));
@@ -210,9 +214,9 @@ int tlvs_del(struct tlv_store *tlvs, uint8_t type)
 	if (!tlv)
 		return -ENOENT;
 
-	pinfo("Deleted TLV[%x] data # %i @ 0x%02lx\n", TLV_DBG(tlv));
 	tlvs->frag = 1;
 	memset(tlv, TLV_PAD, sizeof(*tlv) + tlv->length);
+	TLV_DEBUG("Delete", tlv);
 	return 0;
 }
 
@@ -253,7 +257,7 @@ static void tlvs_dump_entry(struct tlv_store *tlvs, struct tlv_field *tlv)
 {
 	int i;
 
-	printf("TLV[%x] data # %i @ 0x%02lx: ", TLV_DBG(tlv));
+	printf("TLV[%x] data # %i @ 0x%02lx: ", TLV_PROPS(tlv));
 	for (i = 0; i < tlv->length; i++) {
 		printf("0x%02x ", tlv->value[i]);
 	}
