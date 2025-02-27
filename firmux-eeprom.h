@@ -47,6 +47,14 @@ struct tlv_property {
 	ssize_t (*tlvp_format)(void **data_out, void *data_in, size_t size_in);
 };
 
+struct tlv_group {
+	enum tlv_code tlvg_id_first;
+	enum tlv_code tlvg_id_last;
+	const char *tlvg_pattern;
+	ssize_t (*tlvg_parse)(void **data_out, void *data_in, size_t size_in, const char *param);
+	ssize_t (*tlvg_format)(void **data_out, void *data_in, size_t size_in, char **param);
+};
+
 int tlv_eeprom_prop_check(char *key, char *val);
 int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val);
 int tlv_eeprom_dump(struct tlv_store *tlvs, char *key);
