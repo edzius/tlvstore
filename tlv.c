@@ -253,41 +253,64 @@ ssize_t tlvs_get(struct tlv_store *tlvs, uint8_t type, int len, char *buf)
 	return cnt;
 }
 
-static void tlvs_dump_entry(struct tlv_store *tlvs, struct tlv_field *tlv)
-{
-	int i;
-
-	printf("TLV[%x] data # %i @ 0x%02lx: ", TLV_PROPS(tlv));
-	for (i = 0; i < tlv->length; i++) {
-		printf("0x%02x ", tlv->value[i]);
-	}
-	printf("| ");
-	for (i = 0; i < tlv->length; i++) {
-		printf("%c", (tlv->value[i] > 31 &&
-			      tlv->value[i] < 127) ?
-		       tlv->value[i] : '.');
-	}
-	printf("\n");
-}
-
 void tlvs_dump(struct tlv_store *tlvs)
 {
-	void *last, *curr;
+	struct tlv_iterator iter;
+	struct tlv_field *tlv;
+	int i;
+
+	tlvs_iter_init(&iter, tlvs);
+
+	while ((tlv = tlvs_iter_next(&iter)) != NULL) {
+		printf("TLV[%x] data # %i @ 0x%02lx: ", TLV_PROPS(tlv));
+		for (i = 0; i < tlv->length; i++) {
+			printf("0x%02x ", tlv->value[i]);
+		}
+		printf("| ");
+		for (i = 0; i < tlv->length; i++) {
+			printf("%c", (tlv->value[i] > 31 &&
+				      tlv->value[i] < 127) ?
+			       tlv->value[i] : '.');
+		}
+		printf("\n");
+	}
+}
+
+void tlvs_iter_init(struct tlv_iterator *iter, struct tlv_store *tlvs)
+{
+	if (!iter || !tlvs)
+		return;
+
+	iter->tlvs = tlvs;
+	iter->curr = tlvs->base;
+}
+
+struct tlv_field *tlvs_iter_next(struct tlv_iterator *iter)
+{
+	void *last;
 	struct tlv_field *tlv;
 
-	curr = tlvs->base;
-	last = tlvs->base + tlvs->size;
+	if (!iter)
+		return NULL;
 
-	while ((curr + sizeof(struct tlv_field)) < last) {
-		tlv = curr;
+	last = iter->tlvs->base + iter->tlvs->size;
+
+	while ((iter->curr + sizeof(struct tlv_field)) < last) {
+		tlv = iter->curr;
+		/* End of TLV storage */
 		if (tlv->type == TLV_EMPTY)
-			break;
+			return NULL;
 		/* Padding (holes) handling */
 		if (tlv->type == TLV_PAD) {
-			curr++;
+			iter->curr++;
 			continue;
 		}
-		tlvs_dump_entry(tlvs, tlv);
-		curr += tlv->length + sizeof(struct tlv_field);
+
+		/* Move cursor to next entry for subsequent calls */
+		iter->curr += tlv->length + sizeof(struct tlv_field);
+
+		return tlv;
 	}
+
+	return NULL;
 }
