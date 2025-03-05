@@ -291,6 +291,112 @@ int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
 	return ret;
 }
 
+static struct tlv_property *tlv_eeprom_prop_format(struct tlv_field *tlv, char **key)
+{
+	struct tlv_property *tlvp;
+
+	if (key)
+		*key = NULL;
+
+	tlvp = &tlv_properties[0];
+	while (tlvp->tlvp_name) {
+		if (tlvp->tlvp_id == tlv->type)
+			break;
+		tlvp++;
+	}
+
+	if (!tlvp->tlvp_name)
+		return NULL;
+
+	if (key) {
+		*key = strndup(tlvp->tlvp_name, strlen(tlvp->tlvp_name));
+		if (!*key)
+			return NULL;
+	}
+
+	return tlvp;
+}
+
+static struct tlv_group *tlv_eeprom_param_format(struct tlv_field *tlv, char **key)
+{
+	struct tlv_group *tlvg;
+	ssize_t len;
+	char *val;
+	char *param;
+
+	if (key)
+		*key = NULL;
+
+	tlvg = &tlv_groups[0];
+	while (tlvg->tlvg_pattern) {
+		if (tlvg->tlvg_id_first <= tlv->type && tlvg->tlvg_id_last >= tlv->type)
+			break;
+		tlvg++;
+	}
+
+	if (!tlvg->tlvg_pattern)
+		return NULL;
+
+	if (key) {
+		if (tlvg->tlvg_format(NULL, tlv->value, tlv->length, &param) < 0)
+			return NULL;
+		*key = malloc(strlen(tlvg->tlvg_pattern) + strlen(param) + 2);
+		if (!*key)
+			return NULL;
+		sprintf(*key, "%s_%s", tlvg->tlvg_pattern, param);
+	}
+
+	return tlvg;
+}
+
+static int tlv_eeprom_dump_all(struct tlv_store *tlvs)
+{
+	struct tlv_iterator iter;
+	struct tlv_field *tlv;
+	struct tlv_property *tlvp;
+	struct tlv_group *tlvg;
+	char *key;
+	char *val;
+	ssize_t len;
+	int fail = 0;
+
+	tlvs_iter_init(&iter, tlvs);
+
+	while ((tlv = tlvs_iter_next(&iter)) != NULL) {
+		val = NULL;
+		key = NULL;
+
+		if ((tlvg = tlv_eeprom_param_format(tlv, &key))) {
+			len = tlvg->tlvg_format((void **)&val, tlv->value, tlv->length, NULL);
+			if (len < 0) {
+				lerror("Failed to format TLV param %s", key);
+				fail++;
+				goto next;
+			}
+		} else if ((tlvp = tlv_eeprom_prop_format(tlv, &key))) {
+			len = tlvp->tlvp_format((void **)&val, tlv->value, tlv->length);
+			if (len < 0) {
+				lerror("Failed to format TLV param %s", key);
+				fail++;
+				goto next;
+			}
+		} else {
+			lerror("Invalid TLV property type '%i'", tlv->type);
+			fail++;
+			goto next;
+		}
+
+		tlvp_dump(key, val, len);
+
+next:
+		free(key);
+		if (val)
+			free(val);
+	}
+
+	return fail;
+}
+
 int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 {
 	struct tlv_property *tlvp;
@@ -300,6 +406,9 @@ int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 	char *param;
 	char *val;
 	ssize_t size, len;
+
+	if (!key)
+		return tlv_eeprom_dump_all(tlvs);
 
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);

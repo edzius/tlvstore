@@ -122,7 +122,13 @@ int tlvstore_export_params(struct tlv_store *tlvs)
 	struct params_list *pe = pl;
 	int fail = 0;
 
-	ldebug("Starting parameters export");
+	if (!pl) {
+		ldebug("Exporting all TLV properties");
+		fail = tlv_eeprom_dump(tlvs, NULL);
+	} else {
+		ldebug("Starting parameters export");
+	}
+
 	while (pl) {
 		if (pl->val && pl->val[0] == '@') {
 			ldebug("Exporting '%s' to file '%s'", pl->key, pl->val+1);
@@ -187,7 +193,7 @@ static void tlvstore_usage(void)
 	fprintf(stderr, "Usage: tlvstore [options] <key>[=@value>] ...\n"
 			"  -F, --store-file <file-name>     Storage file path\n"
 			"  -S, --store-size <file-size>     Preferred storage file size\n"
-			"  -g, --get                        Get specified keys\n"
+			"  -g, --get                        Get specified keys or all keys when no specified\n"
 			"  -s, --set                        Set specified keys\n"
 			"  -l, --list                       List available keys\n"
 	       );
