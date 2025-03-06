@@ -266,7 +266,7 @@ int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
 		if (code == EEPROM_ATTR_NONE) {
-			lerror("Failed TLV param '%s' slot lookup", param);
+			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
 		size = tlvg->tlvg_parse(&data, val, strlen(val), param);
@@ -282,7 +282,7 @@ int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
 			return -1;
 		}
 	} else {
-		lerror("Invalid TLV property '%s'", key);
+		ldebug("Invalid TLV property '%s'", key);
 		return -1;
 	}
 
@@ -413,7 +413,7 @@ int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);
 		if (code == EEPROM_ATTR_NONE) {
-			lerror("Failed TLV param '%s' slot lookup", param);
+			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
 	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
@@ -471,13 +471,13 @@ int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);
 		if (code == EEPROM_ATTR_NONE) {
-			lerror("Failed TLV param '%s' slot lookup", param);
+			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
 	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
 		code = tlvp->tlvp_id;
 	} else {
-		lerror("Invalid TLV property '%s'", key);
+		ldebug("Invalid TLV property '%s'", key);
 		return -1;
 	}
 
@@ -547,13 +547,13 @@ int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname)
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
 		if (code == EEPROM_ATTR_NONE) {
-			lerror("Failed TLV param '%s' slot lookup", param);
+			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
 	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
 		code = tlvp->tlvp_id;
 	} else {
-		lerror("Invalid TLV property '%s'", key);
+		ldebug("Invalid TLV property '%s'", key);
 		return -1;
 	}
 
