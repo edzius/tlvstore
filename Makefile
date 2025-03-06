@@ -1,6 +1,12 @@
 ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG -g
 endif
+ifneq ($(CONFIG_TLVS_FILE),)
+CFLAGS += -DTLVS_DEFAULT_FILE=\"$(CONFIG_TLVS_FILE)\"
+endif
+ifneq ($(CONFIG_TLVS_SIZE),)
+CFLAGS += -DTLVS_DEFAULT_SIZE=$(CONFIG_TLVS_SIZE)
+endif
 
 .PHONY: all
 all: tlvs
