@@ -10,6 +10,13 @@
 #include "char.h"
 #include "firmux-eeprom.h"
 
+#ifndef TLVS_DEFAULT_FILE
+#define TLVS_DEFAULT_FILE NULL
+#endif
+#ifndef TLVS_DEFAULT_SIZE
+#define TLVS_DEFAULT_SIZE 0
+#endif
+
 #define OP_LIST 1
 #define OP_GET 2
 #define OP_SET 3
@@ -213,8 +220,8 @@ int main(int argc, char *argv[])
 {
 	int opt, index;
 	int ret = 1;
-	char *store_file = NULL;
-	int store_size = 0;
+	char *store_file = TLVS_DEFAULT_FILE;
+	int store_size = TLVS_DEFAULT_SIZE;
 	struct tlv_store *tlvs;
 	struct tlv_device *tlvd;
 
