@@ -255,8 +255,9 @@ static int tlv_eeprom_prop_check(char *key, char *val)
 	return -1;
 }
 
-static int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
+static int tlv_eeprom_update(void *sp, char *key, char *val)
 {
+	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
@@ -399,8 +400,9 @@ next:
 	return fail;
 }
 
-static int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
+static int tlv_eeprom_dump(void *sp, char *key)
 {
+	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
@@ -460,8 +462,9 @@ static int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 	return 0;
 }
 
-static int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
+static int tlv_eeprom_export(void *sp, char *key, char *fname)
 {
+	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
@@ -534,8 +537,9 @@ static int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
 	return 0;
 }
 
-static int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname)
+static int tlv_eeprom_import(void *sp, char *key, char *fname)
 {
+	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
@@ -628,12 +632,12 @@ static void tlv_eeprom_list(void)
 	}
 }
 
-static void tlv_eeprom_free(struct tlv_store *tlvs)
+static void tlv_eeprom_free(void *sp)
 {
-	tlvs_free(tlvs);
+	tlvs_free((struct tlv_store *)sp);
 }
 
-static struct tlv_store *tlv_eeprom_init(struct tlv_device *tlvd)
+static void *tlv_eeprom_init(struct tlv_device *tlvd)
 {
 	struct tlv_store *tlvs;
 
