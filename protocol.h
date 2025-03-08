@@ -8,13 +8,13 @@ struct tlv_protocol {
     void *priv;
 
     void *(*init)(struct tlv_device *tlvd);
-    void (*free)(void *spriv);
+    void (*free)(void *sp);
     void (*list)(void);
     int (*check)(char *key, char *val);
-    int (*update)(void *spriv, char *key, char *val);
-    int (*dump)(void *spriv, char *key);
-    int (*save)(void *spriv, char *key, char *fname);
-    int (*load)(void *spriv, char *key, char *fname);
+    int (*update)(void *sp, char *key, char *val);
+    int (*dump)(void *sp, char *key);
+    int (*save)(void *sp, char *key, char *fname);
+    int (*load)(void *sp, char *key, char *fname);
 };
 
 int tlvp_register(struct tlv_protocol *tlvp);
