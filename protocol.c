@@ -17,7 +17,7 @@ int tlvp_register(struct tlv_protocol *tlvp)
 	return 0;
 }
 
-struct tlv_protocol *tlvp_init(struct tlv_device *tlvd)
+struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 {
 	struct tlv_protocol *tlvp;
 
@@ -31,7 +31,7 @@ struct tlv_protocol *tlvp_init(struct tlv_device *tlvd)
 
 	memcpy(tlvp, tp, sizeof(*tlvp));
 
-	tlvp->priv = tlvp->init(tlvd);
+	tlvp->priv = tlvp->init(tlvd, force);
 	if (!tlvp->priv) {
 		lerror("Failed to initialize '%s' protocol", tp->name);
 		free(tlvp);

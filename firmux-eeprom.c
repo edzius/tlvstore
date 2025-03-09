@@ -11,6 +11,9 @@
 #include "protocol.h"
 #include "firmux-eeprom.h"
 
+#define EEPROM_MAGIC "FXTLVEE"
+#define EEPROM_VERSION 1
+
 static int tlvp_dump(const char *key, void *val, int len)
 {
 	printf("%s=%s\n", key, (char *)val);
@@ -637,11 +640,44 @@ static void tlv_eeprom_free(void *sp)
 	tlvs_free((struct tlv_store *)sp);
 }
 
-static void *tlv_eeprom_init(struct tlv_device *tlvd)
+static void *tlv_eeprom_init(struct tlv_device *tlvd, int force)
 {
+	struct tlv_header *tlvh;
 	struct tlv_store *tlvs;
+	int empty, len = 0;
 
-	tlvs = tlvs_init(tlvd->base, tlvd->size);
+	if (tlvd->size <= sizeof(*tlvh)) {
+		lerror("Storage is too small %zu/%zu", tlvd->size, sizeof(*tlvh));
+		return NULL;
+	}
+
+	tlvh = tlvd->base;
+	if (!strncmp(tlvh->magic, EEPROM_MAGIC, sizeof(tlvh->magic)) &&
+	    tlvh->version == EEPROM_VERSION)
+		goto done;
+
+	empty = 1;
+	while (len < sizeof(*tlvh)) {
+		if (((unsigned char *)tlvd->base)[len] != 0xFF) {
+			empty = 0;
+			break;
+		}
+		len++;
+	}
+
+	if (empty || force) {
+		if (force)
+			ldebug("Reinitialising non-empty storage");
+		memset(tlvh, 0, sizeof(*tlvh));
+		memcpy(tlvh->magic, EEPROM_MAGIC, sizeof(tlvh->magic));
+		tlvh->version = EEPROM_VERSION;
+	} else {
+		ldebug("Unknown storage signature");
+		return NULL;
+	}
+
+done:
+	tlvs = tlvs_init(tlvd->base + sizeof(*tlvh), tlvd->size - sizeof(*tlvh));
 	if (!tlvs)
 		lerror("Failed to initialize TLV store");
 

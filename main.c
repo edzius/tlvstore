@@ -1,4 +1,3 @@
-
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -202,6 +201,7 @@ static void tlvstore_usage(void)
 	fprintf(stderr, "Usage: tlvstore [options] <key>[=@value>] ...\n"
 			"  -F, --store-file <file-name>     Storage file path\n"
 			"  -S, --store-size <file-size>     Preferred storage file size\n"
+			"  -f, --force                      Force initialise storage\n"
 			"  -g, --get                        Get specified keys or all keys when no specified\n"
 			"  -s, --set                        Set specified keys\n"
 			"  -l, --list                       List available keys\n"
@@ -212,6 +212,7 @@ static struct option tlvstore_options[] =
 {
 	{ "store-size",   1, 0, 'S' },
 	{ "store-file",   1, 0, 'F' },
+	{ "force",        0, 0, 'f' },
 	{ "get",          0, 0, 'g' },
 	{ "set",          0, 0, 's' },
 	{ "list",         0, 0, 'l' },
@@ -224,14 +225,18 @@ int main(int argc, char *argv[])
 	int ret = 1;
 	char *store_file = TLVS_DEFAULT_FILE;
 	int store_size = TLVS_DEFAULT_SIZE;
+	int force = 0;
 
-	while ((opt = getopt_long(argc, argv, "F:S:hgsl", tlvstore_options, &index)) != -1) {
+	while ((opt = getopt_long(argc, argv, "F:S:hfgsl", tlvstore_options, &index)) != -1) {
 		switch (opt) {
 		case 'F':
 			store_file = strdup(optarg);
 			break;
 		case 'S':
 			store_size = atoi(optarg);
+			break;
+		case 'f':
+			force = 1;
 			break;
 		case 'g':
 			op = OP_GET;
@@ -263,7 +268,7 @@ int main(int argc, char *argv[])
 
 	ldebug("Opened storage memory file %s at %p, size: %zi", store_file, tlvd->base, tlvd->size);
 
-	tlvp = tlvp_init(tlvd);
+	tlvp = tlvp_init(tlvd, force);
 	if (!tlvp) {
 		fprintf(stderr, "Unknown storage protocol for '%s'\n", store_file);
 		tlvd_close(tlvd);
