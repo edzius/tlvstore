@@ -12,10 +12,22 @@ struct proto_entry {
 };
 
 static struct proto_entry *proto_list;
+static struct tlv_protocol *proto_default;
 
 int tlvp_register(struct tlv_protocol *tlvp)
 {
 	struct proto_entry *entry;
+
+	if (tlvp->def) {
+		if (proto_default) {
+			lerror("Default protocol already registered");
+			return -1;
+		}
+
+		ldebug("Registering default protocol: %s", tlvp->name);
+		proto_default = tlvp;
+		return 0;
+	}
 
 	ldebug("Registering protocol: %s", tlvp->name);
 
@@ -52,10 +64,9 @@ struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 	struct tlv_protocol *proto = NULL;
 	void *priv = NULL;
 
-	if (force) {
-		proto = proto_list->proto;
-		priv = proto->init(tlvd, 1);
-	} else {
+	proto = proto_default;
+	priv = proto->init(tlvd, force);
+	if (!priv && !force) {
 		for (entry = proto_list; entry != NULL; entry = entry->next) {
 			priv = entry->proto->init(tlvd, 0);
 			if (!priv)
@@ -65,7 +76,7 @@ struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 		}
 	}
 
-	if (!proto) {
+	if (!priv) {
 		lerror("No matching protocol found for storage device");
 		return NULL;
 	}
