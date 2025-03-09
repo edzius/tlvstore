@@ -40,6 +40,13 @@ enum tlv_code {
 	EEPROM_ATTR_EMPTY = 0xFF,
 };
 
+struct __attribute__ ((__packed__)) tlv_header {
+	char magic[7];
+	uint8_t version;
+	uint32_t crc;
+	uint32_t len;
+};
+
 struct tlv_property {
 	enum tlv_code tlvp_id;
 	const char *tlvp_name;
