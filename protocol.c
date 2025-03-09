@@ -6,37 +6,81 @@
 #include "log.h"
 #include "protocol.h"
 
-static struct tlv_protocol *tp;
+struct proto_entry {
+	struct tlv_protocol *proto;
+	struct proto_entry *next;
+};
+
+static struct proto_entry *proto_list;
 
 int tlvp_register(struct tlv_protocol *tlvp)
 {
+	struct proto_entry *entry;
+
 	ldebug("Registering protocol: %s", tlvp->name);
 
-	tp = tlvp;
+	entry = malloc(sizeof(struct proto_entry));
+	if (!entry) {
+		perror("malloc() failed");
+		return -1;
+	}
+
+	entry->proto = tlvp;
+	entry->next = proto_list;
+	proto_list = entry;
 
 	return 0;
 }
 
+void tlvp_unregister(void)
+{
+	struct proto_entry *tmp, *ptr = proto_list;
+
+	while (ptr) {
+		tmp = ptr->next;
+		free(ptr);
+		ptr = tmp;
+	}
+
+	proto_list = NULL;
+}
+
 struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 {
+	struct proto_entry *entry;
 	struct tlv_protocol *tlvp;
+	struct tlv_protocol *proto = NULL;
+	void *priv = NULL;
 
-	ldebug("Initialising storage protocol: %s", tp->name);
+	if (force) {
+		proto = proto_list->proto;
+		priv = proto->init(tlvd, 1);
+	} else {
+		for (entry = proto_list; entry != NULL; entry = entry->next) {
+			priv = entry->proto->init(tlvd, 0);
+			if (!priv)
+				continue;
+			proto = entry->proto;
+			break;
+		}
+	}
+
+	if (!proto) {
+		lerror("No matching protocol found for storage device");
+		return NULL;
+	}
+
+	ldebug("Initialising storage protocol: %s", proto->name);
 
 	tlvp = malloc(sizeof(*tlvp));
 	if (!tlvp) {
+		proto->free(priv);
 		perror("malloc() failed");
 		return NULL;
 	}
 
-	memcpy(tlvp, tp, sizeof(*tlvp));
-
-	tlvp->priv = tlvp->init(tlvd, force);
-	if (!tlvp->priv) {
-		lerror("Failed to initialize '%s' protocol", tp->name);
-		free(tlvp);
-		return NULL;
-	}
+	memcpy(tlvp, proto, sizeof(*tlvp));
+	tlvp->priv = priv;
 
 	return tlvp;
 }
