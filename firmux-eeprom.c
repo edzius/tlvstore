@@ -9,6 +9,8 @@
 
 #include "log.h"
 #include "tlv.h"
+#include "char.h"
+#include "protocol.h"
 #include "firmux-eeprom.h"
 
 static int tlvp_dump(const char *key, void *val, int len)
@@ -230,7 +232,7 @@ static enum tlv_code tlv_eeprom_param_slot(struct tlv_store *tlvs, struct tlv_gr
 	return slot;
 }
 
-int tlv_eeprom_prop_check(char *key, char *val)
+static int tlv_eeprom_prop_check(char *key, char *val)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -255,7 +257,7 @@ int tlv_eeprom_prop_check(char *key, char *val)
 	return -1;
 }
 
-int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
+static int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -399,7 +401,7 @@ next:
 	return fail;
 }
 
-int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
+static int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -460,7 +462,7 @@ int tlv_eeprom_dump(struct tlv_store *tlvs, char *key)
 	return 0;
 }
 
-int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
+static int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -534,7 +536,7 @@ int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname)
 	return 0;
 }
 
-int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname)
+static int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -610,7 +612,7 @@ int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname)
 	return ret;
 }
 
-void tlv_eeprom_list(void)
+static void tlv_eeprom_list(void)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -626,4 +628,38 @@ void tlv_eeprom_list(void)
 		printf("%s*\n", tlvg->tlvg_pattern);
 		tlvg++;
 	}
+}
+
+static void tlv_eeprom_free(struct tlv_store *tlvs)
+{
+	tlvs_free(tlvs);
+}
+
+static struct tlv_store *tlv_eeprom_init(struct tlv_device *tlvd)
+{
+	struct tlv_store *tlvs;
+
+	tlvs = tlvs_init(tlvd->base, tlvd->size);
+	if (!tlvs)
+		lerror("Failed to initialize TLV store");
+
+	return tlvs;
+}
+
+static struct tlv_protocol firmux_protocol = {
+	.name = "firmux-eeprom",
+	.init = tlv_eeprom_init,
+	.free = tlv_eeprom_free,
+	.list = tlv_eeprom_list,
+	.check = tlv_eeprom_prop_check,
+	.update = tlv_eeprom_update,
+	.dump = tlv_eeprom_dump,
+	.save = tlv_eeprom_export,
+	.load = tlv_eeprom_import,
+};
+
+/* Register the Firmux protocol during initialization */
+static void __attribute__((constructor)) firmux_eeprom_register(void)
+{
+	tlvp_register(&firmux_protocol);
 }
