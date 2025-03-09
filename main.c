@@ -301,5 +301,7 @@ int main(int argc, char *argv[])
 
 	tlvd_close(tlvd);
 
+	tlvp_unregister();
+
 	return ret;
 }

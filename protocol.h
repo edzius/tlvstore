@@ -18,6 +18,7 @@ struct tlv_protocol {
 };
 
 int tlvp_register(struct tlv_protocol *tlvp);
+void tlvp_unregister(void);
 struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force);
 void tlvp_free(struct tlv_protocol *tlvp);
 void tlvp_eeprom_list(struct tlv_protocol *tlvp);
