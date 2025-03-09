@@ -8,7 +8,7 @@
 #include "log.h"
 #include "tlv.h"
 #include "char.h"
-#include "firmux-eeprom.h"
+#include "protocol.h"
 
 #ifndef TLVS_DEFAULT_FILE
 #define TLVS_DEFAULT_FILE NULL
@@ -28,6 +28,8 @@ struct params_list {
 };
 
 static struct params_list *pl;
+static struct tlv_device *tlvd;
+static struct tlv_protocol *tlvp;
 static int op;
 
 int tlvstore_parse_line(char *arg)
@@ -44,7 +46,7 @@ int tlvstore_parse_line(char *arg)
 
 	ldebug("Parsed parameter: '%s' = '%s'", key, val);
 
-	if (tlv_eeprom_prop_check(key, op == OP_SET ? val : NULL)) {
+	if (tlvp_eeprom_check(tlvp, key, op == OP_SET ? val : NULL)) {
 		lerror("Invalid EEPROM param '%s'", arg);
 		free(key);
 		return 1;
@@ -124,14 +126,14 @@ int tlvstore_parse_params(int argc, char *argv[])
 	return fail;
 }
 
-int tlvstore_export_params(struct tlv_store *tlvs)
+int tlvstore_export_params(void)
 {
 	struct params_list *pe = pl;
 	int fail = 0;
 
 	if (!pl) {
 		ldebug("Exporting all TLV properties");
-		fail = tlv_eeprom_dump(tlvs, NULL);
+		fail = tlvp_eeprom_dump(tlvp, NULL);
 	} else {
 		ldebug("Starting parameters export");
 	}
@@ -139,13 +141,13 @@ int tlvstore_export_params(struct tlv_store *tlvs)
 	while (pl) {
 		if (pl->val && pl->val[0] == '@') {
 			ldebug("Exporting '%s' to file '%s'", pl->key, pl->val+1);
-			if (tlv_eeprom_export(tlvs, pl->key, pl->val+1) < 0) {
+			if (tlvp_eeprom_save(tlvp, pl->key, pl->val+1) < 0) {
 				lerror("Failed to export '%s' to '%s'",
 					pl->key, pl->val+1);
 				fail++;
 			}
 		} else {
-			if (tlv_eeprom_dump(tlvs, pl->key) < 0) {
+			if (tlvp_eeprom_dump(tlvp, pl->key) < 0) {
 				lerror("Failed to dump '%s'", pl->key);
 				fail++;
 			}
@@ -159,7 +161,7 @@ int tlvstore_export_params(struct tlv_store *tlvs)
 	return fail;
 }
 
-int tlvstore_import_params(struct tlv_store *tlvs)
+int tlvstore_import_params(void)
 {
 	struct params_list *pe = pl;
 	int fail = 0;
@@ -168,14 +170,14 @@ int tlvstore_import_params(struct tlv_store *tlvs)
 	while (pl) {
 		if (pl->val && pl->val[0] == '@') {
 			ldebug("Importing '%s' from file '%s'", pl->key, pl->val+1);
-			if (tlv_eeprom_import(tlvs, pl->key, pl->val+1) < 0) {
+			if (tlvp_eeprom_load(tlvp, pl->key, pl->val+1) < 0) {
 				lerror("Failed to import '%s' from '%s'",
 					pl->key, pl->val+1);
 				fail++;
 			}
 		} else if (pl->val) {
 			ldebug("Updating '%s' with value '%s'", pl->key, pl->val);
-			if (tlv_eeprom_update(tlvs, pl->key, pl->val) < 0) {
+			if (tlvp_eeprom_update(tlvp, pl->key, pl->val) < 0) {
 				lerror("Failed to update '%s'", pl->key);
 				fail++;
 			}
@@ -192,7 +194,7 @@ int tlvstore_import_params(struct tlv_store *tlvs)
 void tlvstore_list_properties(void)
 {
 	ldebug("Listing TLV properties");
-	tlv_eeprom_list();
+	tlvp_eeprom_list(tlvp);
 }
 
 static void tlvstore_usage(void)
@@ -222,8 +224,6 @@ int main(int argc, char *argv[])
 	int ret = 1;
 	char *store_file = TLVS_DEFAULT_FILE;
 	int store_size = TLVS_DEFAULT_SIZE;
-	struct tlv_store *tlvs;
-	struct tlv_device *tlvd;
 
 	while ((opt = getopt_long(argc, argv, "F:S:hgsl", tlvstore_options, &index)) != -1) {
 		switch (opt) {
@@ -249,18 +249,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (op == OP_LIST) {
-		tlvstore_list_properties();
-		exit(EXIT_SUCCESS);
-	}
-
 	if (!store_file) {
 		fprintf(stderr, "Storage file not specified\n");
-		tlvstore_usage();
-		exit(EXIT_FAILURE);
-	}
-
-	if (tlvstore_parse_params(argc - optind, &argv[optind])) {
 		tlvstore_usage();
 		exit(EXIT_FAILURE);
 	}
@@ -271,27 +261,38 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	ldebug("Opened storage memory file %s, size: %zi", store_file, store_size);
+	ldebug("Opened storage memory file %s at %p, size: %zi", store_file, tlvd->base, tlvd->size);
 
-	tlvs = tlvs_init(tlvd->base, tlvd->size);
-	if (!tlvs) {
-		fprintf(stderr, "Failed to initialize TLV store\n");
+	tlvp = tlvp_init(tlvd);
+	if (!tlvp) {
+		fprintf(stderr, "Unknown storage protocol for '%s'\n", store_file);
+		tlvd_close(tlvd);
 		exit(EXIT_FAILURE);
 	}
 
-	ldebug("Initialised TLV store at %p, size %zu", tlvd->base, tlvd->size);
+	ldebug("Initialized storage protocol '%s'", tlvp->name);
 
-	if (op == OP_GET) {
-		if (!tlvstore_export_params(tlvs))
+	if (tlvstore_parse_params(argc - optind, &argv[optind])) {
+		tlvstore_usage();
+		tlvp_free(tlvp);
+		tlvd_close(tlvd);
+		exit(EXIT_FAILURE);
+	}
+
+	if (op == OP_LIST) {
+		tlvstore_list_properties();
+		ret = 0;
+	} else if (op == OP_GET) {
+		if (!tlvstore_export_params())
 			ret = 0;
 	} else if (op == OP_SET) {
-		if (!tlvstore_import_params(tlvs))
+		if (!tlvstore_import_params())
 			ret = 0;
 	} else {
 		linfo("No operation specified");
 	}
 
-	tlvs_free(tlvs);
+	tlvp_free(tlvp);
 
 	tlvd_close(tlvd);
 

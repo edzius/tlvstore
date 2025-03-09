@@ -55,11 +55,4 @@ struct tlv_group {
 	ssize_t (*tlvg_format)(void **data_out, void *data_in, size_t size_in, char **param);
 };
 
-int tlv_eeprom_prop_check(char *key, char *val);
-int tlv_eeprom_update(struct tlv_store *tlvs, char *key, char *val);
-int tlv_eeprom_dump(struct tlv_store *tlvs, char *key);
-int tlv_eeprom_export(struct tlv_store *tlvs, char *key, char *fname);
-int tlv_eeprom_import(struct tlv_store *tlvs, char *key, char *fname);
-void tlv_eeprom_list(void);
-
 #endif /* __FIRMUX_EEPROM_H */
