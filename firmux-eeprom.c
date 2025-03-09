@@ -686,6 +686,7 @@ done:
 
 static struct tlv_protocol firmux_protocol = {
 	.name = "firmux-eeprom",
+	.def = 1,
 	.init = tlv_eeprom_init,
 	.free = tlv_eeprom_free,
 	.list = tlv_eeprom_list,

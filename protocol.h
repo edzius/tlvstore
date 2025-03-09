@@ -5,6 +5,7 @@
 
 struct tlv_protocol {
     const char *name;
+    int def;
     void *priv;
 
     void *(*init)(struct tlv_device *tlvd, int force);
