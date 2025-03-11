@@ -37,7 +37,18 @@ enum tlv_code {
 	EEPROM_ATTR_MAC_16,
 	EEPROM_ATTR_MAC_LAST = EEPROM_ATTR_MAC_16,
 
+	/* Calibration data */
+	EEPROM_ATTR_XTAL_CAL_DATA = 240,
+	EEPROM_ATTR_RADIO_CAL_DATA,
+	EEPROM_ATTR_RADIO_BOARD_DATA,
+
 	EEPROM_ATTR_EMPTY = 0xFF,
+};
+
+enum tlv_spec {
+	INPUT_SPEC_NONE,
+	INPUT_SPEC_TXT,
+	INPUT_SPEC_BIN,
 };
 
 struct __attribute__ ((__packed__)) tlv_header {
@@ -48,16 +59,18 @@ struct __attribute__ ((__packed__)) tlv_header {
 };
 
 struct tlv_property {
-	enum tlv_code tlvp_id;
 	const char *tlvp_name;
+	enum tlv_code tlvp_id;
+	enum tlv_spec tlvp_spec;
 	ssize_t (*tlvp_parse)(void **data_out, void *data_in, size_t size_in);
 	ssize_t (*tlvp_format)(void **data_out, void *data_in, size_t size_in);
 };
 
 struct tlv_group {
+	const char *tlvg_pattern;
 	enum tlv_code tlvg_id_first;
 	enum tlv_code tlvg_id_last;
-	const char *tlvg_pattern;
+	enum tlv_spec tlvg_spec;
 	ssize_t (*tlvg_parse)(void **data_out, void *data_in, size_t size_in, const char *param);
 	ssize_t (*tlvg_format)(void **data_out, void *data_in, size_t size_in, char **param);
 };

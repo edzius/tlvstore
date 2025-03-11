@@ -14,9 +14,23 @@
 #define EEPROM_MAGIC "FXTLVEE"
 #define EEPROM_VERSION 1
 
-static int tlvp_dump(const char *key, void *val, int len)
+static int tlvp_dump(const char *key, void *val, int len, enum tlv_spec type)
 {
-	printf("%s=%s\n", key, (char *)val);
+	int i;
+
+	if (type == INPUT_SPEC_TXT) {
+		printf("%s=%s\n", key, (char *)val);
+	} else if (type == INPUT_SPEC_BIN) {
+		printf("%s[%d] {", key, len);
+		for (i = 0; i < len; i++) {
+			if (!(i % 16)) {
+				putchar('\n');
+				putchar(' ');
+			}
+			printf("%02x ", 0xFF & ((char *)val)[i]);
+		}
+		puts("\n}");
+	}
 }
 
 static ssize_t tlvp_copy(void **data_out, void *data_in, size_t size_in)
@@ -133,21 +147,33 @@ static ssize_t tlvp_format_device_mac(void **data_out, void *data_in, size_t siz
 	return cnt;
 }
 
+static ssize_t tlvp_input_bin(void **data_out, void *data_in, size_t size_in)
+{
+	return tlvp_copy(data_out, data_in, size_in);
+}
+
+static ssize_t tlvp_output_bin(void **data_out, void *data_in, size_t size_in)
+{
+	return tlvp_copy(data_out, data_in, size_in);
+}
+
 static struct tlv_property tlv_properties[] = {
-	{ EEPROM_ATTR_PRODUCT_ID, "PRODUCT_ID", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_PRODUCT_NAME, "PRODUCT_NAME", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_SERIAL_NO, "SERIAL_NO", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_PCB_NAME, "PCB_NAME", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_PCB_REVISION, "PCB_REVISION", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_PCB_PRDATE, "PCB_PRDATE", tlvp_parse_date_triplet, tlvp_format_date_triplet },
-	{ EEPROM_ATTR_PCB_PRLOCATION, "PCB_PRLOCATION", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_PCB_SN, "PCB_SN", tlvp_copy, tlvp_copy },
-	{ EEPROM_ATTR_NONE, NULL, NULL, NULL, }
+	{ "PRODUCT_ID", EEPROM_ATTR_PRODUCT_ID, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PRODUCT_NAME", EEPROM_ATTR_PRODUCT_NAME, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "SERIAL_NO", EEPROM_ATTR_SERIAL_NO, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PCB_NAME", EEPROM_ATTR_PCB_NAME, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PCB_REVISION", EEPROM_ATTR_PCB_REVISION, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PCB_PRDATE", EEPROM_ATTR_PCB_PRDATE, INPUT_SPEC_TXT, tlvp_parse_date_triplet, tlvp_format_date_triplet },
+	{ "PCB_PRLOCATION", EEPROM_ATTR_PCB_PRLOCATION, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PCB_SN", EEPROM_ATTR_PCB_SN, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "XTAL_CALDATA", EEPROM_ATTR_XTAL_CAL_DATA, INPUT_SPEC_BIN, tlvp_input_bin, tlvp_output_bin },
+	{ "RADIO_CALDATA", EEPROM_ATTR_RADIO_CAL_DATA, INPUT_SPEC_BIN, tlvp_input_bin, tlvp_output_bin },
+	{ NULL, EEPROM_ATTR_NONE, INPUT_SPEC_NONE, NULL, NULL, }
 };
 
 static struct tlv_group tlv_groups[] = {
-	{ EEPROM_ATTR_MAC_FIRST, EEPROM_ATTR_MAC_LAST, "MAC_ADDR", tlvp_parse_device_mac, tlvp_format_device_mac },
-	{ EEPROM_ATTR_NONE, EEPROM_ATTR_NONE, NULL, NULL, NULL }
+	{ "MAC_ADDR", EEPROM_ATTR_MAC_FIRST, EEPROM_ATTR_MAC_LAST, INPUT_SPEC_TXT, tlvp_parse_device_mac, tlvp_format_device_mac },
+	{ NULL, EEPROM_ATTR_NONE, EEPROM_ATTR_NONE, INPUT_SPEC_NONE, NULL, NULL }
 };
 
 static struct tlv_property *tlv_eeprom_prop_find(char *key)
@@ -361,6 +387,7 @@ static int tlv_eeprom_dump_all(struct tlv_store *tlvs)
 	struct tlv_field *tlv;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
+	enum tlv_spec spec;
 	char *key;
 	char *val;
 	ssize_t len;
@@ -379,6 +406,7 @@ static int tlv_eeprom_dump_all(struct tlv_store *tlvs)
 				fail++;
 				goto next;
 			}
+			spec = tlvg->tlvg_spec;
 		} else if ((tlvp = tlv_eeprom_prop_format(tlv, &key))) {
 			len = tlvp->tlvp_format((void **)&val, tlv->value, tlv->length);
 			if (len < 0) {
@@ -386,13 +414,14 @@ static int tlv_eeprom_dump_all(struct tlv_store *tlvs)
 				fail++;
 				goto next;
 			}
+			spec = tlvp->tlvp_spec;
 		} else {
 			lerror("Invalid TLV property type '%i'", tlv->type);
 			fail++;
 			goto next;
 		}
 
-		tlvp_dump(key, val, len);
+		tlvp_dump(key, val, len, spec);
 
 next:
 		free(key);
@@ -409,6 +438,7 @@ static int tlv_eeprom_dump(void *sp, char *key)
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
+	enum tlv_spec spec;
 	void *data;
 	char *param;
 	char *val;
@@ -449,8 +479,10 @@ static int tlv_eeprom_dump(void *sp, char *key)
 
 	if (tlvg) {
 		len = tlvg->tlvg_format((void **)&val, data, size, NULL);
+		spec = tlvg->tlvg_spec;
 	} else if (tlvp) {
 		len = tlvp->tlvp_format((void **)&val, data, size);
+		spec = tlvp->tlvp_spec;
 	}
 	free(data);
 	if (len < 0) {
@@ -458,7 +490,7 @@ static int tlv_eeprom_dump(void *sp, char *key)
 		return -1;
 	}
 
-	tlvp_dump(key, val, len);
+	tlvp_dump(key, val, len, spec);
 
 	free(val);
 
