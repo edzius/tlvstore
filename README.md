@@ -24,6 +24,9 @@ The solution is composed of 3 main parts:
   - PCB_SN - Serial number of the PCB
   - MAC_ADDR_* - MAC address for network interfaces, may be specified multiple
     times for different interfaces
+  - XTAL_CALDATA - Board/radio XTAL calibration data
+  - RADIO_CALDATA - Radio calibration data
+  - RADIO_BRDDATA - Radio board data
 
 ## Usage
 
@@ -113,6 +116,8 @@ Build the utility with optional debug output, custom storage file and size:
   | `DEBUG=1` | Enables debug build, to produce detailed operation information |
   | `CONFIG_TLVS_FILE=/path/to/storage.bin` | Specifies a default storage file path |
   | `CONFIG_TLVS_SIZE=size` | Specifies a default storage size (in bytes) |
+  | `CONFIG_TLVS_COMPRESSION=<0-9>` | Specifies compression level preset (default: 9 extreme) |
+  | `CONFIG_TLVS_COMPRESSION_NONE=y` | Disables compression support (default LZMA compression) |
 
 Install the utility with optional installation prefix:
 
@@ -120,9 +125,12 @@ Install the utility with optional installation prefix:
   make install [PREFIX=/path/to/installation]
   ```
 
+When compression is enabled packages is linked against liblzma, therefore
+`liblzma-dev` should be available in libs search path or sysroot.
+
 ## Next
 
-  - [ ] Add binary data input/output support
-  - [ ] Add binary data compression
-  - [ ] Add support for multiple storages
+  - [ ] Add data checksum validation
+  - [ ] Add more compression algorithms options
+  - [ ] Add support for compressing all fields
   - [ ] Add bindings for python and LUA languages
