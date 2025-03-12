@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "log.h"
+#include "utils.h"
 #include "tlv.h"
 #include "char.h"
 #include "protocol.h"
@@ -264,24 +265,40 @@ static int tlv_eeprom_prop_check(char *key, char *val)
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	char *param;
+	char *pval;
+	size_t plen;
+	int ret = -1;
+
+	if (val && val[0] == '@') {
+		pval = afread(val + 1, &plen);
+	} else {
+		pval = val;
+		plen = strlen(val);
+	}
 
 	tlvg = tlv_eeprom_param_find(key, &param);
 	if (tlvg) {
-		if (!val)
+		if (!pval)
 			return 0;
 
-		return tlvg->tlvg_parse(NULL, val, strlen(val), param) == -1;
+		ret = tlvg->tlvg_parse(NULL, pval, plen, param) == -1;
+		goto out;
 	}
 
 	tlvp = tlv_eeprom_prop_find(key);
 	if (tlvp) {
-		if (!val)
+		if (!pval)
 			return 0;
 
-		return tlvp->tlvp_parse(NULL, val, strlen(val)) == -1;
+		ret = tlvp->tlvp_parse(NULL, pval, plen) == -1;
+		goto out;
 	}
 
-	return -1;
+out:
+	if (val && val[0] == '@')
+		free(pval);
+
+	return ret;
 }
 
 static int tlv_eeprom_update(void *sp, char *key, char *val)
