@@ -19,7 +19,7 @@ clean:
 install: tlvs
 	install -Dm755 tlvs $(PREFIX)/usr/bin/tlvs
 
-tlvs: main.o firmux-eeprom.o protocol.o char.o tlv.o
+tlvs: main.o firmux-eeprom.o protocol.o char.o tlv.o utils.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
@@ -30,3 +30,4 @@ firmux-eeprom.o: firmux-eeprom.c
 protocol.o: protocol.c
 tlv.o: tlv.c
 char.o: char.c
+utils.o: utils.c
