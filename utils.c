@@ -42,3 +42,26 @@ void *afread(const char *file_name, size_t *file_size)
 	*file_size = fsize;
 	return fdata;
 }
+
+ssize_t afwrite(const char *file_name, void *data, size_t size)
+{
+	FILE *fp;
+	ssize_t cnt;
+
+	fp = fopen(file_name, "wb");
+	if (!fp) {
+		perror("fopen() failed");
+		return -1;
+	}
+
+	cnt = fwrite(data, 1, size, fp);
+	if (cnt != size) {
+		perror("fwrite() failed");
+		fclose(fp);
+		return -1;
+	}
+
+	fclose(fp);
+
+	return cnt;
+}

@@ -108,39 +108,23 @@ void tlvp_eeprom_list(struct tlv_protocol *tlvp)
 	tlvp->list();
 }
 
-int tlvp_eeprom_check(struct tlv_protocol *tlvp, char *key, char *val)
+int tlvp_eeprom_check(struct tlv_protocol *tlvp, char *key, char *in)
 {
 	if (!key)
 		return -1;
 
-	return tlvp->check(key, val);
+	return tlvp->check(key, in);
 }
 
-int tlvp_eeprom_update(struct tlv_protocol *tlvp, char *key, char *val)
+int tlvp_eeprom_import(struct tlv_protocol *tlvp, char *key, char *in)
 {
-	if (!key || !val)
+	if (!key || !in)
 		return -1;
 
-	return tlvp->update(tlvp->priv, key, val);
+	return tlvp->store(tlvp->priv, key, in);
 }
 
-int tlvp_eeprom_dump(struct tlv_protocol *tlvp, char *key)
+int tlvp_eeprom_export(struct tlv_protocol *tlvp, char *key, char *out)
 {
-	return tlvp->dump(tlvp->priv, key);
-}
-
-int tlvp_eeprom_save(struct tlv_protocol *tlvp, char *key, char *fname)
-{
-	if (!key || !fname)
-		return -1;
-
-	return tlvp->save(tlvp->priv, key, fname);
-}
-
-int tlvp_eeprom_load(struct tlv_protocol *tlvp, char *key, char *fname)
-{
-	if (!key || !fname)
-		return -1;
-
-	return tlvp->load(tlvp->priv, key, fname);
+	return tlvp->print(tlvp->priv, key, out);
 }
