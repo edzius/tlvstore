@@ -418,83 +418,44 @@ static enum tlv_code tlv_eeprom_param_slot(struct tlv_store *tlvs, struct tlv_gr
 	return slot;
 }
 
-static int tlv_eeprom_prop_check(char *key, char *val)
+static int tlv_eeprom_prop_check(char *key, char *in)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	char *param;
-	char *pval;
-	size_t plen;
+	char *val;
+	size_t len;
 	int ret = -1;
 
-	if (val && val[0] == '@') {
-		pval = afread(val + 1, &plen);
+	if (in && in[0] == '@') {
+		val = afread(in + 1, &len);
 	} else {
-		pval = val;
-		plen = strlen(val);
+		val = in;
+		len = strlen(in);
 	}
 
 	tlvg = tlv_eeprom_param_find(key, &param);
 	if (tlvg) {
-		if (!pval)
+		if (!val)
 			return 0;
 
-		ret = tlvg->tlvg_parse(NULL, pval, plen, param) == -1;
+		ret = tlvg->tlvg_parse(NULL, val, len, param) == -1;
 		goto out;
 	}
 
 	tlvp = tlv_eeprom_prop_find(key);
 	if (tlvp) {
-		if (!pval)
+		if (!val)
 			return 0;
 
-		ret = tlvp->tlvp_parse(NULL, pval, plen) == -1;
+		ret = tlvp->tlvp_parse(NULL, val, len) == -1;
 		goto out;
 	}
 
 out:
-	if (val && val[0] == '@')
-		free(pval);
+	if (in && in[0] == '@')
+		free(val);
 
-	return ret;
-}
-
-static int tlv_eeprom_update(void *sp, char *key, char *val)
-{
-	struct tlv_store *tlvs = (struct tlv_store *)sp;
-	struct tlv_property *tlvp;
-	struct tlv_group *tlvg;
-	enum tlv_code code;
-	char *param;
-	void *data;
-	ssize_t size;
-	int ret;
-
-	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
-		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
-		if (code == EEPROM_ATTR_NONE) {
-			ldebug("Failed TLV param '%s' slot lookup", param);
-			return -1;
-		}
-		size = tlvg->tlvg_parse(&data, val, strlen(val), param);
-		if (size < 0) {
-			lerror("Failed TLV param '%s' parse, size %zu", param, strlen(val));
-			return -1;
-		}
-	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
-		code = tlvp->tlvp_id;
-		size = tlvp->tlvp_parse(&data, val, strlen(val));
-		if (size < 0) {
-			lerror("Failed TLV property parse, size %zu", strlen(val));
-			return -1;
-		}
-	} else {
-		ldebug("Invalid TLV property '%s'", key);
-		return -1;
-	}
-
-	ret = tlvs_set(tlvs, code, size, data);
-	free(data);
 	return ret;
 }
 
@@ -556,7 +517,70 @@ static struct tlv_group *tlv_eeprom_param_format(struct tlv_field *tlv, char **k
 	return tlvg;
 }
 
-static int tlv_eeprom_dump_all(struct tlv_store *tlvs)
+static int tlv_eeprom_store(void *sp, char *key, char *in)
+{
+	struct tlv_store *tlvs = (struct tlv_store *)sp;
+	struct tlv_property *tlvp;
+	struct tlv_group *tlvg;
+	enum tlv_code code;
+	char *param;
+	char *val;
+	void *data = NULL;
+	ssize_t size, len;
+	int ret = -1;
+
+	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
+		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
+		if (code == EEPROM_ATTR_NONE) {
+			ldebug("Failed TLV param '%s' slot lookup", param);
+			return -1;
+		}
+	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
+		code = tlvp->tlvp_id;
+	} else {
+		ldebug("Invalid TLV property '%s'", key);
+		return -1;
+	}
+
+	if (!in)
+		return -1;
+
+	if (in[0] == '@') {
+		val = afread(in + 1, &len);
+		if (!val) {
+			lerror("Failed to read file '%s'", in + 1);
+			return -1;
+		}
+	} else {
+		val = in;
+		len = strlen(in);
+	}
+
+	if (tlvg) {
+		size = tlvg->tlvg_parse(&data, val, len, param);
+		if (size < 0) {
+			lerror("Failed TLV param '%s' parse, size %zu", param, len);
+			goto fail;
+		}
+	} else if (tlvp) {
+		size = tlvp->tlvp_parse(&data, val, len);
+		if (size < 0) {
+			lerror("Failed TLV property parse, size %zu", len);
+			goto fail;
+		}
+	}
+
+	ret = tlvs_set(tlvs, code, size, data);
+
+fail:
+	if (data)
+		free(data);
+	if (in[0] == '@')
+		free(val);
+	return ret;
+}
+
+static int tlv_eeprom_print_all(struct tlv_store *tlvs)
 {
 	struct tlv_iterator iter;
 	struct tlv_field *tlv;
@@ -607,20 +631,20 @@ next:
 	return fail;
 }
 
-static int tlv_eeprom_dump(void *sp, char *key)
+static int tlv_eeprom_print(void *sp, char *key, char *out)
 {
 	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	enum tlv_code code;
 	enum tlv_spec spec;
-	void *data;
 	char *param;
 	char *val;
+	void *data;
 	ssize_t size, len;
 
 	if (!key)
-		return tlv_eeprom_dump_all(tlvs);
+		return tlv_eeprom_print_all(tlvs);
 
 	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
 		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);
@@ -631,7 +655,7 @@ static int tlv_eeprom_dump(void *sp, char *key)
 	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
 		code = tlvp->tlvp_id;
 	} else {
-		lerror("Invalid TLV property '%s'", key);
+		ldebug("Invalid TLV property '%s'", key);
 		return -1;
 	}
 
@@ -665,163 +689,14 @@ static int tlv_eeprom_dump(void *sp, char *key)
 		return -1;
 	}
 
-	tlvp_dump(key, val, len, spec);
+	if (out)
+		afwrite(out[0] == '@' ? out + 1 : out, val, len);
+	else
+		tlvp_dump(key, val, len, spec);
 
 	free(val);
 
 	return 0;
-}
-
-static int tlv_eeprom_export(void *sp, char *key, char *fname)
-{
-	struct tlv_store *tlvs = (struct tlv_store *)sp;
-	struct tlv_property *tlvp;
-	struct tlv_group *tlvg;
-	enum tlv_code code;
-	FILE *fp;
-	void *data, *fdata;
-	ssize_t size, fsize;
-	char *param;
-
-	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
-		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);
-		if (code == EEPROM_ATTR_NONE) {
-			ldebug("Failed TLV param '%s' slot lookup", param);
-			return -1;
-		}
-	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
-		code = tlvp->tlvp_id;
-	} else {
-		ldebug("Invalid TLV property '%s'", key);
-		return -1;
-	}
-
-	fp = fopen(fname, "wb");
-	if (!fp) {
-		perror("fopen() failed");
-		return -1;
-	}
-
-	size = tlvs_get(tlvs, code, 0, NULL);
-	if (size < 0) {
-		lerror("Failed TLV property '%s' get", key);
-		fclose(fp);
-		return -1;
-	}
-
-	data = malloc(size);
-	if (!data) {
-		perror("malloc() failed");
-		fclose(fp);
-		return -1;
-	}
-
-	if (tlvs_get(tlvs, code, size, data) < 0) {
-		fclose(fp);
-		free(data);
-		return -1;
-	}
-
-	if (tlvg) {
-		fsize = tlvg->tlvg_format(&fdata, data, size, NULL);
-	} else if (tlvp) {
-		fsize = tlvp->tlvp_format(&fdata, data, size);
-	}
-	free(data);
-	if (fsize < 0) {
-		lerror("Failed TLV property format, size %zu", size);
-		fclose(fp);
-		return -1;
-	}
-
-	if (fwrite(fdata, 1, fsize, fp) != fsize) {
-		perror("fwrite() failed");
-		fclose(fp);
-		free(fdata);
-		return -1;
-	}
-
-	fclose(fp);
-	free(fdata);
-
-	return 0;
-}
-
-static int tlv_eeprom_import(void *sp, char *key, char *fname)
-{
-	struct tlv_store *tlvs = (struct tlv_store *)sp;
-	struct tlv_property *tlvp;
-	struct tlv_group *tlvg;
-	enum tlv_code code;
-	struct stat st;
-	FILE *fp;
-	void *fdata, *data = NULL;
-	ssize_t fsize, size;
-	char *param;
-	int ret;
-
-	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
-		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
-		if (code == EEPROM_ATTR_NONE) {
-			ldebug("Failed TLV param '%s' slot lookup", param);
-			return -1;
-		}
-	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
-		code = tlvp->tlvp_id;
-	} else {
-		ldebug("Invalid TLV property '%s'", key);
-		return -1;
-	}
-
-	fp = fopen(fname, "rb");
-	if (!fp) {
-		perror("fopen() failed");
-		return -1;
-	}
-
-	if (fstat(fileno(fp), &st) != 0) {
-		perror("fstat() failed");
-		fclose(fp);
-		return -1;
-	}
-
-	fsize = st.st_size;
-	fdata = malloc(fsize);
-	if (!fdata) {
-		perror("malloc() failed");
-		fclose(fp);
-		return -1;
-	}
-
-	if (fread(fdata, 1, fsize, fp) != fsize) {
-		perror("fread() failed");
-		fclose(fp);
-		free(fdata);
-		return -1;
-	}
-
-	fclose(fp);
-
-	if (tlvg) {
-		size = tlvg->tlvg_parse(&data, fdata, fsize, param);
-		if (size < 0) {
-			lerror("Failed TLV param '%s' parse, size %zu", param, fsize);
-			free(fdata);
-			return -1;
-		}
-	} else if (tlvp) {
-		size = tlvp->tlvp_parse(&data, fdata, fsize);
-		if (size < 0) {
-			lerror("Failed TLV property parse, size %zu", fsize);
-			free(fdata);
-			return -1;
-		}
-	}
-
-	ret = tlvs_set(tlvs, code, size, data);
-	free(data);
-	free(fdata);
-	return ret;
 }
 
 static void tlv_eeprom_list(void)
@@ -898,10 +773,8 @@ static struct tlv_protocol firmux_protocol = {
 	.free = tlv_eeprom_free,
 	.list = tlv_eeprom_list,
 	.check = tlv_eeprom_prop_check,
-	.update = tlv_eeprom_update,
-	.dump = tlv_eeprom_dump,
-	.save = tlv_eeprom_export,
-	.load = tlv_eeprom_import,
+	.print = tlv_eeprom_print,
+	.store = tlv_eeprom_store,
 };
 
 static void __attribute__((constructor)) firmux_eeprom_register(void)

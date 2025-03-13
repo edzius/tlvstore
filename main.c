@@ -132,24 +132,19 @@ int tlvstore_export_params(void)
 
 	if (!pl) {
 		ldebug("Exporting all TLV properties");
-		fail = tlvp_eeprom_dump(tlvp, NULL);
+		fail = tlvp_eeprom_export(tlvp, NULL, NULL);
 	} else {
 		ldebug("Starting parameters export");
 	}
 
 	while (pl) {
-		if (pl->val && pl->val[0] == '@') {
-			ldebug("Exporting '%s' to file '%s'", pl->key, pl->val+1);
-			if (tlvp_eeprom_save(tlvp, pl->key, pl->val+1) < 0) {
+		if (tlvp_eeprom_export(tlvp, pl->key, pl->val) < 0) {
+			if (pl->val)
 				lerror("Failed to export '%s' to '%s'",
-					pl->key, pl->val+1);
-				fail++;
-			}
-		} else {
-			if (tlvp_eeprom_dump(tlvp, pl->key) < 0) {
-				lerror("Failed to dump '%s'", pl->key);
-				fail++;
-			}
+				       pl->key, pl->val);
+			else
+				lerror("Failed to export '%s'", pl->key);
+			fail++;
 		}
 		pl = pl->next;
 	}
@@ -167,19 +162,9 @@ int tlvstore_import_params(void)
 
 	ldebug("Starting parameters import");
 	while (pl) {
-		if (pl->val && pl->val[0] == '@') {
-			ldebug("Importing '%s' from file '%s'", pl->key, pl->val+1);
-			if (tlvp_eeprom_load(tlvp, pl->key, pl->val+1) < 0) {
-				lerror("Failed to import '%s' from '%s'",
-					pl->key, pl->val+1);
-				fail++;
-			}
-		} else if (pl->val) {
-			ldebug("Updating '%s' with value '%s'", pl->key, pl->val);
-			if (tlvp_eeprom_update(tlvp, pl->key, pl->val) < 0) {
-				lerror("Failed to update '%s'", pl->key);
-				fail++;
-			}
+		if (tlvp_eeprom_import(tlvp, pl->key, pl->val) < 0) {
+			lerror("Failed to import '%s' value '%s'", pl->key, pl->val);
+			fail++;
 		}
 		pl = pl->next;
 	}
