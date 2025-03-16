@@ -14,6 +14,7 @@ struct tlv_store {
 	size_t size;
 	void *base;
 	int frag;
+	int dirty;
 };
 
 struct tlv_iterator {

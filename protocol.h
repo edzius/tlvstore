@@ -14,12 +14,14 @@ struct tlv_protocol {
 	int (*check)(char *key, char *val);
 	int (*print)(void *sp, char *key, char *out);
 	int (*store)(void *sp, char *key, char *in);
+	int (*flush)(void *sp);
 };
 
 int tlvp_register(struct tlv_protocol *tlvp);
 void tlvp_unregister(void);
 struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force);
 void tlvp_free(struct tlv_protocol *tlvp);
+int tlvp_eeprom_flush(struct tlv_protocol *tlvp);
 void tlvp_eeprom_list(struct tlv_protocol *tlvp);
 int tlvp_eeprom_check(struct tlv_protocol *tlvp, char *key, char *val);
 int tlvp_eeprom_import(struct tlv_protocol *tlvp, char *key, char *in);

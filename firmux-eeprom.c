@@ -10,6 +10,7 @@
 
 #include "log.h"
 #include "utils.h"
+#include "crc.h"
 #include "tlv.h"
 #include "char.h"
 #include "protocol.h"
@@ -423,13 +424,13 @@ static int tlv_eeprom_prop_check(char *key, char *in)
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
 	char *param;
-	char *val;
-	size_t len;
+	char *val = NULL;
+	size_t len = 0;
 	int ret = -1;
 
 	if (in && in[0] == '@') {
 		val = afread(in + 1, &len);
-	} else {
+	} else if (in) {
 		val = in;
 		len = strlen(in);
 	}
@@ -717,6 +718,20 @@ static void tlv_eeprom_list(void)
 	}
 }
 
+static int tlv_eeprom_flush(void *sp)
+{
+	struct tlv_store *tlvs = sp;
+	struct tlv_header *tlvh = tlvs->base - sizeof(*tlvh);
+
+	if (tlvs->dirty) {
+		tlvh->len = tlvs_len(sp);
+		tlvh->crc = crc_32(tlvs->base, tlvh->len);
+		tlvs->dirty = 0;
+	}
+
+	return 0;
+}
+
 static void tlv_eeprom_free(void *sp)
 {
 	tlvs_free((struct tlv_store *)sp);
@@ -727,6 +742,7 @@ static void *tlv_eeprom_init(struct tlv_device *tlvd, int force)
 	struct tlv_header *tlvh;
 	struct tlv_store *tlvs;
 	int empty, len = 0;
+	unsigned int crc;
 
 	if (tlvd->size <= sizeof(*tlvh)) {
 		lerror("Storage is too small %zu/%zu", tlvd->size, sizeof(*tlvh));
@@ -759,6 +775,12 @@ static void *tlv_eeprom_init(struct tlv_device *tlvd, int force)
 	}
 
 done:
+	crc = crc_32(tlvd->base + sizeof(*tlvh), tlvh->len);
+	if (crc != tlvh->crc) {
+		lerror("Invalid storage crc\n");
+		return NULL;
+	}
+
 	tlvs = tlvs_init(tlvd->base + sizeof(*tlvh), tlvd->size - sizeof(*tlvh));
 	if (!tlvs)
 		lerror("Failed to initialize TLV store");
@@ -775,6 +797,7 @@ static struct tlv_protocol firmux_protocol = {
 	.check = tlv_eeprom_prop_check,
 	.print = tlv_eeprom_print,
 	.store = tlv_eeprom_store,
+	.flush = tlv_eeprom_flush,
 };
 
 static void __attribute__((constructor)) firmux_eeprom_register(void)

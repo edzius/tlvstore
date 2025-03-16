@@ -45,6 +45,8 @@ void tlvs_free(struct tlv_store *tlvs)
 void tlvs_reset(struct tlv_store *tlvs)
 {
 	memset(tlvs->base, TLV_EMPTY, tlvs->size);
+
+	tlvs->dirty = 1;
 }
 
 void tlvs_optimise(struct tlv_store *tlvs)
@@ -79,6 +81,8 @@ void tlvs_optimise(struct tlv_store *tlvs)
 
 	if (save != curr)
 		memset(save, TLV_EMPTY, curr - save);
+
+	tlvs->dirty = 1;
 }
 
 static struct tlv_field *tlvs_gap(struct tlv_store *tlvs, uint16_t length)
@@ -157,6 +161,7 @@ static int tlvs_add_tail(struct tlv_store *tlvs, uint8_t type, uint16_t length, 
 	tlv->type = type;
 	tlv->length = length;
 	memcpy(tlv->value, value, length);
+	tlvs->dirty = 1;
 	TLV_DEBUG("New", tlv);
 	return 0;
 }
@@ -186,6 +191,7 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 
 	if (tlv->length == length) {
 		memcpy(tlv->value, value, length);
+		tlvs->dirty = 1;
 		TLV_DEBUG("Set", tlv);
 		return 0;
 	}
@@ -196,6 +202,7 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 	if (tlv->length > length) {
 		memcpy(tlv->value, value, length);
 		tlv->length = length;
+		tlvs->dirty = 1;
 		TLV_DEBUG("Set", tlv);
 		return 0;
 	} else if (tlv->length < length) {
@@ -215,6 +222,7 @@ int tlvs_del(struct tlv_store *tlvs, uint8_t type)
 		return -ENOENT;
 
 	tlvs->frag = 1;
+	tlvs->dirty = 1;
 	memset(tlv, TLV_PAD, sizeof(*tlv) + tlv->length);
 	TLV_DEBUG("Delete", tlv);
 	return 0;

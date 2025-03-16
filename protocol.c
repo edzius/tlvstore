@@ -99,8 +99,15 @@ struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 void tlvp_free(struct tlv_protocol *tlvp)
 {
 	ldebug("Releasing protocol storage: %s", tlvp->name);
+	tlvp->flush(tlvp->priv);
 	tlvp->free(tlvp->priv);
 	free(tlvp);
+}
+
+int tlvp_flush(struct tlv_protocol *tlvp)
+{
+	ldebug("Flushing protocol storage: %s", tlvp->name);
+	return tlvp->flush(tlvp->priv);
 }
 
 void tlvp_eeprom_list(struct tlv_protocol *tlvp)
