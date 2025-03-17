@@ -1,5 +1,5 @@
-#ifndef __FIRMUX_EEPROM_H
-#define __FIRMUX_EEPROM_H
+#ifndef __FIRMUX_TLV_H
+#define __FIRMUX_TLV_H
 
 enum tlv_code {
 	EEPROM_ATTR_NONE,
@@ -75,4 +75,4 @@ struct tlv_group {
 	ssize_t (*tlvg_format)(void **data_out, void *data_in, size_t size_in, char **param);
 };
 
-#endif /* __FIRMUX_EEPROM_H */
+#endif /* __FIRMUX_TLV_H */

@@ -81,6 +81,19 @@ ssize_t acopy_text(void **data_out, void *data_in, size_t size_in)
 	return size_in + 1;
 }
 
+ssize_t acopy_data(void **data_out, void *data_in, size_t size_in)
+{
+	if (!data_out)
+		return size_in;
+
+	*data_out = malloc(size_in);
+	if (!*data_out)
+		return -1;
+
+	memcpy(*data_out, data_in, size_in);
+	return size_in;
+}
+
 ssize_t aparse_byte_triplet(void **data_out, void *data_in, size_t size_in)
 {
 	unsigned char *buf;
@@ -153,6 +166,7 @@ ssize_t aformat_mac_address(void **data_out, void *data_in, size_t size_in)
 	unsigned char *buf = data_in;
 	char *line;
 	int cnt;
+
 	if (!data_out)
 		return MAC_STR_LEN;
 

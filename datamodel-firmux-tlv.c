@@ -1,29 +1,27 @@
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #ifdef HAVE_LZMA_H
 #include <lzma.h>
 #endif
 
+#include "crc.h"
+
 #include "log.h"
 #include "utils.h"
-#include "crc.h"
 #include "tlv.h"
 #include "char.h"
 #include "protocol.h"
-#include "firmux-eeprom.h"
+#include "datamodel-firmux-tlv.h"
 
-#define EEPROM_MAGIC "FXTLVEE"
+#define EEPROM_MAGIC "FXDMTLV"
 #define EEPROM_VERSION 1
 
 #ifndef TLVS_DEFAULT_COMPRESSION
 #define TLVS_DEFAULT_COMPRESSION (9 | LZMA_PRESET_EXTREME)
 #endif
 
-static int tlvp_dump(const char *key, void *val, int len, enum tlv_spec type)
+static int data_dump(const char *key, void *val, int len, enum tlv_spec type)
 {
 	int i;
 
@@ -42,95 +40,38 @@ static int tlvp_dump(const char *key, void *val, int len, enum tlv_spec type)
 	}
 }
 
-static ssize_t tlvp_copy(void **data_out, void *data_in, size_t size_in)
-{
-	if (!data_out)
-		return size_in;
-
-	*data_out = malloc(size_in);
-	if (!*data_out)
-		return -1;
-
-	memcpy(*data_out, data_in, size_in);
-	return size_in;
-}
-
-static ssize_t tlvp_parse_date_triplet(void **data_out, void *data_in, size_t size_in)
-{
-	unsigned char *buf;
-	unsigned char year, month, day;
-
-	if (sscanf(data_in, "%hhu-%hhu-%hhu", &year, &month, &day) < 3)
-		return -1;
-
-	if (!data_out)
-		return 3;
-
-	buf = malloc(3);
-	if (!buf)
-		return -1;
-
-	buf[0] = year;
-	buf[1] = month;
-	buf[2] = day;
-	*data_out = buf;
-	return 3;
-}
-
-static ssize_t tlvp_format_date_triplet(void **data_out, void *data_in, size_t size_in)
-{
-#define DATE_STR_LEN 9
-	unsigned char *buf;
-	char *line;
-	int cnt;
-
-	if (!data_out)
-		return DATE_STR_LEN;
-
-	line = malloc(DATE_STR_LEN);
-	if (!line)
-		return -1;
-
-	buf = data_in;
-	cnt = snprintf(line, DATE_STR_LEN, "%u-%u-%u", buf[0], buf[1], buf[2]);
-	*data_out = line;
-	return cnt;
-}
-
 static ssize_t tlvp_parse_device_mac(void **data_out, void *data_in, size_t size_in, const char *param)
 {
-	char *buf;
-	unsigned char oct[6];
-	int cnt, len;
+	char *extra_buf;
+	int extra_len, len;
 
-	cnt = sscanf(data_in, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-		     &oct[0], &oct[1], &oct[2], &oct[3], &oct[4], &oct[5]);
-	if (cnt < sizeof(oct))
-		return -1;
-
-	len = sizeof(oct) + (param ? (strlen(param) + 1) : 0);
-	if (!data_out)
+	len = aparse_mac_address(data_out, data_in, size_in);
+	if (len < -1)
 		return len;
 
-	buf = malloc(len);
-	if (!buf)
-		return -1;
+	extra_len = len + (param ? (strlen(param) + 1) : 0);
+	if (!data_out)
+		return extra_len;
 
-	memcpy(buf, oct, sizeof(oct));
-	if (param && strlen(param))
-		strcpy((char *)buf + sizeof(oct), param);
+	if (param && strlen(param)) {
+		extra_buf = realloc(*data_out, extra_len);
+		if (!extra_buf) {
+			perror("realloc() failed");
+			free(*data_out);
+			return -1;
+		}
+		strcpy((char *)extra_buf + len, param);
+		*data_out = extra_buf;
+		len = extra_len;
+	}
 
-	*data_out = buf;
 	return len;
 }
 
 static ssize_t tlvp_format_device_mac(void **data_out, void *data_in, size_t size_in, char **param)
 {
-#define MAC_STR_LEN 18
 	static char extra[16];
-	unsigned char *buf = data_in;
-	char *line;
-	int cnt, extra_len = size_in - 6;
+	int extra_len = size_in - 6;
 
 	if (param) {
 		if (extra_len < 0)
@@ -138,32 +79,22 @@ static ssize_t tlvp_format_device_mac(void **data_out, void *data_in, size_t siz
 		else if (extra_len >= sizeof(extra))
 			extra_len = sizeof(extra) - 1;
 		if (extra_len)
-			strncpy(extra, (char *)buf + 6, extra_len);
+			strncpy(extra, (char *)data_in + 6, extra_len);
 		extra[extra_len] = '\0';
 		*param = extra;
 	}
 
-	if (!data_out)
-		return MAC_STR_LEN;
-
-	line = malloc(MAC_STR_LEN);
-	if (!line)
-		return -1;
-
-	cnt = snprintf(line, MAC_STR_LEN, "%02x:%02x:%02x:%02x:%02x:%02x",
-		       buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
-	*data_out = line;
-	return cnt;
+	return aformat_mac_address(data_out, data_in, size_in);
 }
 
 static ssize_t tlvp_input_bin(void **data_out, void *data_in, size_t size_in)
 {
-	return tlvp_copy(data_out, data_in, size_in);
+	return acopy_data(data_out, data_in, size_in);
 }
 
 static ssize_t tlvp_output_bin(void **data_out, void *data_in, size_t size_in)
 {
-	return tlvp_copy(data_out, data_in, size_in);
+	return acopy_data(data_out, data_in, size_in);
 }
 
 #ifdef HAVE_LZMA_H
@@ -307,24 +238,24 @@ static ssize_t tlvp_decompress_bin(void **data_out, void *data_in, size_t size_i
 #else
 static ssize_t tlvp_compress_bin(void **data_out, void *data_in, size_t size_in)
 {
-	return tlvp_copy(data_out, data_in, size_in);
+	return acopy_data(data_out, data_in, size_in);
 }
 
 static ssize_t tlvp_decompress_bin(void **data_out, void *data_in, size_t size_in)
 {
-	return tlvp_copy(data_out, data_in, size_in);
+	return acopy_data(data_out, data_in, size_in);
 }
 #endif
 
 static struct tlv_property tlv_properties[] = {
-	{ "PRODUCT_ID", EEPROM_ATTR_PRODUCT_ID, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "PRODUCT_NAME", EEPROM_ATTR_PRODUCT_NAME, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "SERIAL_NO", EEPROM_ATTR_SERIAL_NO, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "PCB_NAME", EEPROM_ATTR_PCB_NAME, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "PCB_REVISION", EEPROM_ATTR_PCB_REVISION, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "PCB_PRDATE", EEPROM_ATTR_PCB_PRDATE, INPUT_SPEC_TXT, tlvp_parse_date_triplet, tlvp_format_date_triplet },
-	{ "PCB_PRLOCATION", EEPROM_ATTR_PCB_PRLOCATION, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
-	{ "PCB_SN", EEPROM_ATTR_PCB_SN, INPUT_SPEC_TXT, tlvp_copy, tlvp_copy },
+	{ "PRODUCT_ID", EEPROM_ATTR_PRODUCT_ID, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "PRODUCT_NAME", EEPROM_ATTR_PRODUCT_NAME, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "SERIAL_NO", EEPROM_ATTR_SERIAL_NO, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "PCB_NAME", EEPROM_ATTR_PCB_NAME, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "PCB_REVISION", EEPROM_ATTR_PCB_REVISION, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "PCB_PRDATE", EEPROM_ATTR_PCB_PRDATE, INPUT_SPEC_TXT, aparse_byte_triplet, aformat_byte_triplet },
+	{ "PCB_PRLOCATION", EEPROM_ATTR_PCB_PRLOCATION, INPUT_SPEC_TXT, acopy_data, acopy_data },
+	{ "PCB_SN", EEPROM_ATTR_PCB_SN, INPUT_SPEC_TXT, acopy_data, acopy_data },
 	{ "XTAL_CALDATA", EEPROM_ATTR_XTAL_CAL_DATA, INPUT_SPEC_BIN, tlvp_input_bin, tlvp_output_bin },
 	{ "RADIO_CALDATA", EEPROM_ATTR_RADIO_CAL_DATA, INPUT_SPEC_BIN, tlvp_compress_bin, tlvp_decompress_bin },
 	{ "RADIO_BRDDATA", EEPROM_ATTR_RADIO_BOARD_DATA, INPUT_SPEC_BIN, tlvp_compress_bin, tlvp_decompress_bin },
@@ -336,7 +267,7 @@ static struct tlv_group tlv_groups[] = {
 	{ NULL, EEPROM_ATTR_NONE, EEPROM_ATTR_NONE, INPUT_SPEC_NONE, NULL, NULL }
 };
 
-static struct tlv_property *tlv_eeprom_prop_find(char *key)
+static struct tlv_property *firmux_tlv_prop_find(char *key)
 {
 	struct tlv_property *tlvp;
 
@@ -353,7 +284,7 @@ static struct tlv_property *tlv_eeprom_prop_find(char *key)
 	return tlvp;
 }
 
-static struct tlv_group *tlv_eeprom_param_find(char *key, char **param)
+static struct tlv_group *firmux_tlv_param_find(char *key, char **param)
 {
 	struct tlv_group *tlvg;
 
@@ -380,7 +311,7 @@ static struct tlv_group *tlv_eeprom_param_find(char *key, char **param)
 	return tlvg;
 }
 
-static enum tlv_code tlv_eeprom_param_slot(struct tlv_store *tlvs, struct tlv_group *tlvg, char *param, int exact)
+static enum tlv_code firmux_tlv_param_slot(struct tlv_store *tlvs, struct tlv_group *tlvg, char *param, int exact)
 {
 	enum tlv_code code, slot = EEPROM_ATTR_NONE;
 	char *extra;
@@ -425,7 +356,7 @@ static enum tlv_code tlv_eeprom_param_slot(struct tlv_store *tlvs, struct tlv_gr
 	return slot;
 }
 
-static int tlv_eeprom_prop_check(char *key, char *in)
+static int firmux_tlv_prop_check(char *key, char *in)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -441,7 +372,7 @@ static int tlv_eeprom_prop_check(char *key, char *in)
 		len = strlen(in);
 	}
 
-	tlvg = tlv_eeprom_param_find(key, &param);
+	tlvg = firmux_tlv_param_find(key, &param);
 	if (tlvg) {
 		if (!val)
 			return 0;
@@ -450,7 +381,7 @@ static int tlv_eeprom_prop_check(char *key, char *in)
 		goto out;
 	}
 
-	tlvp = tlv_eeprom_prop_find(key);
+	tlvp = firmux_tlv_prop_find(key);
 	if (tlvp) {
 		if (!val)
 			return 0;
@@ -466,7 +397,7 @@ out:
 	return ret;
 }
 
-static struct tlv_property *tlv_eeprom_prop_format(struct tlv_field *tlv, char **key)
+static struct tlv_property *firmux_tlv_prop_format(struct tlv_field *tlv, char **key)
 {
 	struct tlv_property *tlvp;
 
@@ -492,7 +423,7 @@ static struct tlv_property *tlv_eeprom_prop_format(struct tlv_field *tlv, char *
 	return tlvp;
 }
 
-static struct tlv_group *tlv_eeprom_param_format(struct tlv_field *tlv, char **key)
+static struct tlv_group *firmux_tlv_param_format(struct tlv_field *tlv, char **key)
 {
 	struct tlv_group *tlvg;
 	ssize_t len;
@@ -524,7 +455,7 @@ static struct tlv_group *tlv_eeprom_param_format(struct tlv_field *tlv, char **k
 	return tlvg;
 }
 
-static int tlv_eeprom_store(void *sp, char *key, char *in)
+static int firmux_tlv_prop_store(void *sp, char *key, char *in)
 {
 	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
@@ -536,13 +467,13 @@ static int tlv_eeprom_store(void *sp, char *key, char *in)
 	ssize_t size, len;
 	int ret = -1;
 
-	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
-		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 0);
+	if ((tlvg = firmux_tlv_param_find(key, &param))) {
+		code = firmux_tlv_param_slot(tlvs, tlvg, param, 0);
 		if (code == EEPROM_ATTR_NONE) {
 			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
-	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
+	} else if ((tlvp = firmux_tlv_prop_find(key))) {
 		code = tlvp->tlvp_id;
 	} else {
 		ldebug("Invalid TLV property '%s'", key);
@@ -587,7 +518,7 @@ fail:
 	return ret;
 }
 
-static int tlv_eeprom_print_all(struct tlv_store *tlvs)
+static int firmux_tlv_print_all(struct tlv_store *tlvs)
 {
 	struct tlv_iterator iter;
 	struct tlv_field *tlv;
@@ -605,7 +536,7 @@ static int tlv_eeprom_print_all(struct tlv_store *tlvs)
 		val = NULL;
 		key = NULL;
 
-		if ((tlvg = tlv_eeprom_param_format(tlv, &key))) {
+		if ((tlvg = firmux_tlv_param_format(tlv, &key))) {
 			len = tlvg->tlvg_format((void **)&val, tlv->value, tlv->length, NULL);
 			if (len < 0) {
 				lerror("Failed to format TLV param %s", key);
@@ -613,7 +544,7 @@ static int tlv_eeprom_print_all(struct tlv_store *tlvs)
 				goto next;
 			}
 			spec = tlvg->tlvg_spec;
-		} else if ((tlvp = tlv_eeprom_prop_format(tlv, &key))) {
+		} else if ((tlvp = firmux_tlv_prop_format(tlv, &key))) {
 			len = tlvp->tlvp_format((void **)&val, tlv->value, tlv->length);
 			if (len < 0) {
 				lerror("Failed to format TLV param %s", key);
@@ -627,7 +558,7 @@ static int tlv_eeprom_print_all(struct tlv_store *tlvs)
 			goto next;
 		}
 
-		tlvp_dump(key, val, len, spec);
+		data_dump(key, val, len, spec);
 
 next:
 		free(key);
@@ -638,7 +569,7 @@ next:
 	return fail;
 }
 
-static int tlv_eeprom_print(void *sp, char *key, char *out)
+static int firmux_tlv_prop_print(void *sp, char *key, char *out)
 {
 	struct tlv_store *tlvs = (struct tlv_store *)sp;
 	struct tlv_property *tlvp;
@@ -651,15 +582,15 @@ static int tlv_eeprom_print(void *sp, char *key, char *out)
 	ssize_t size, len;
 
 	if (!key)
-		return tlv_eeprom_print_all(tlvs);
+		return firmux_tlv_print_all(tlvs);
 
-	if ((tlvg = tlv_eeprom_param_find(key, &param))) {
-		code = tlv_eeprom_param_slot(tlvs, tlvg, param, 1);
+	if ((tlvg = firmux_tlv_param_find(key, &param))) {
+		code = firmux_tlv_param_slot(tlvs, tlvg, param, 1);
 		if (code == EEPROM_ATTR_NONE) {
 			ldebug("Failed TLV param '%s' slot lookup", param);
 			return -1;
 		}
-	} else if ((tlvp = tlv_eeprom_prop_find(key))) {
+	} else if ((tlvp = firmux_tlv_prop_find(key))) {
 		code = tlvp->tlvp_id;
 	} else {
 		ldebug("Invalid TLV property '%s'", key);
@@ -699,14 +630,14 @@ static int tlv_eeprom_print(void *sp, char *key, char *out)
 	if (out)
 		afwrite(out[0] == '@' ? out + 1 : out, val, len);
 	else
-		tlvp_dump(key, val, len, spec);
+		data_dump(key, val, len, spec);
 
 	free(val);
 
 	return 0;
 }
 
-static void tlv_eeprom_list(void)
+static void firmux_tlv_prop_list(void)
 {
 	struct tlv_property *tlvp;
 	struct tlv_group *tlvg;
@@ -724,7 +655,7 @@ static void tlv_eeprom_list(void)
 	}
 }
 
-static int tlv_eeprom_flush(void *sp)
+static int firmux_tlv_flush(void *sp)
 {
 	struct tlv_store *tlvs = sp;
 	struct tlv_header *tlvh = tlvs->base - sizeof(*tlvh);
@@ -738,12 +669,12 @@ static int tlv_eeprom_flush(void *sp)
 	return 0;
 }
 
-static void tlv_eeprom_free(void *sp)
+static void firmux_tlv_free(void *sp)
 {
 	tlvs_free((struct tlv_store *)sp);
 }
 
-static void *tlv_eeprom_init(struct tlv_device *tlvd, int force)
+static void *firmux_tlv_init(struct tlv_device *tlvd, int force)
 {
 	struct tlv_header *tlvh;
 	struct tlv_store *tlvs;
@@ -794,19 +725,19 @@ done:
 	return tlvs;
 }
 
-static struct tlv_protocol firmux_protocol = {
-	.name = "firmux-eeprom",
+static struct tlv_protocol firmux_tlv_model = {
+	.name = "firmux-tlv",
 	.def = 1,
-	.init = tlv_eeprom_init,
-	.free = tlv_eeprom_free,
-	.list = tlv_eeprom_list,
-	.check = tlv_eeprom_prop_check,
-	.print = tlv_eeprom_print,
-	.store = tlv_eeprom_store,
-	.flush = tlv_eeprom_flush,
+	.init = firmux_tlv_init,
+	.free = firmux_tlv_free,
+	.list = firmux_tlv_prop_list,
+	.check = firmux_tlv_prop_check,
+	.print = firmux_tlv_prop_print,
+	.store = firmux_tlv_prop_store,
+	.flush = firmux_tlv_flush,
 };
 
-static void __attribute__((constructor)) firmux_eeprom_register(void)
+static void __attribute__((constructor)) firmux_tlv_register(void)
 {
-	tlvp_register(&firmux_protocol);
+	tlvp_register(&firmux_tlv_model);
 }
