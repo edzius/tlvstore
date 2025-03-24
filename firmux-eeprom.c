@@ -362,11 +362,17 @@ static struct tlv_group *tlv_eeprom_param_find(char *key, char **param)
 	tlvg = &tlv_groups[0];
 	while (tlvg->tlvg_pattern) {
 		if (!strncmp(tlvg->tlvg_pattern, key, strlen(tlvg->tlvg_pattern))) {
-			*param = key + strlen(tlvg->tlvg_pattern) + 1;
+			*param = key + strlen(tlvg->tlvg_pattern);
 			break;
 		}
 		tlvg++;
 	}
+
+	if (!*param || **param == '\0')
+		return NULL;
+
+	/* Skip the separator character */
+	(*param)++;
 
 	if (!tlvg->tlvg_pattern)
 		return NULL;
