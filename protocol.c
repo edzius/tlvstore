@@ -7,29 +7,29 @@
 #include "protocol.h"
 
 struct proto_entry {
-	struct tlv_protocol *proto;
+	struct storage_protocol *proto;
 	struct proto_entry *next;
 };
 
 static struct proto_entry *proto_list;
-static struct tlv_protocol *proto_default;
+static struct storage_protocol *proto_default;
 
-int tlvp_register(struct tlv_protocol *tlvp)
+int eeprom_register(struct storage_protocol *proto)
 {
 	struct proto_entry *entry;
 
-	if (tlvp->def) {
+	if (proto->def) {
 		if (proto_default) {
 			lerror("Default protocol already registered");
 			return -1;
 		}
 
-		ldebug("Registering default protocol: %s", tlvp->name);
-		proto_default = tlvp;
+		ldebug("Registering default protocol: %s", proto->name);
+		proto_default = proto;
 		return 0;
 	}
 
-	ldebug("Registering protocol: %s", tlvp->name);
+	ldebug("Registering protocol: %s", proto->name);
 
 	entry = malloc(sizeof(struct proto_entry));
 	if (!entry) {
@@ -37,14 +37,14 @@ int tlvp_register(struct tlv_protocol *tlvp)
 		return -1;
 	}
 
-	entry->proto = tlvp;
+	entry->proto = proto;
 	entry->next = proto_list;
 	proto_list = entry;
 
 	return 0;
 }
 
-void tlvp_unregister(void)
+void eeprom_unregister(void)
 {
 	struct proto_entry *tmp, *ptr = proto_list;
 
@@ -57,21 +57,21 @@ void tlvp_unregister(void)
 	proto_list = NULL;
 }
 
-struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
+struct storage_protocol *eeprom_init(struct storage_device *dev, int force)
 {
 	struct proto_entry *entry;
-	struct tlv_protocol *tlvp;
-	struct tlv_protocol *proto = NULL;
+	struct storage_protocol *proto;
+	struct storage_protocol *found = NULL;
 	void *priv = NULL;
 
-	proto = proto_default;
-	priv = proto->init(tlvd, force);
+	found = proto_default;
+	priv = found->init(dev, force);
 	if (!priv && !force) {
 		for (entry = proto_list; entry != NULL; entry = entry->next) {
-			priv = entry->proto->init(tlvd, 0);
+			priv = entry->proto->init(dev, 0);
 			if (!priv)
 				continue;
-			proto = entry->proto;
+			found = entry->proto;
 			break;
 		}
 	}
@@ -81,57 +81,57 @@ struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force)
 		return NULL;
 	}
 
-	ldebug("Initialising storage protocol: %s", proto->name);
+	ldebug("Initialising storage protocol: %s", found->name);
 
-	tlvp = malloc(sizeof(*tlvp));
-	if (!tlvp) {
-		proto->free(priv);
+	proto = malloc(sizeof(*proto));
+	if (!proto) {
+		found->free(priv);
 		perror("malloc() failed");
 		return NULL;
 	}
 
-	memcpy(tlvp, proto, sizeof(*tlvp));
-	tlvp->priv = priv;
+	memcpy(proto, found, sizeof(*proto));
+	proto->priv = priv;
 
-	return tlvp;
+	return proto;
 }
 
-void tlvp_free(struct tlv_protocol *tlvp)
+void eeprom_free(struct storage_protocol *proto)
 {
-	ldebug("Releasing protocol storage: %s", tlvp->name);
-	tlvp->flush(tlvp->priv);
-	tlvp->free(tlvp->priv);
-	free(tlvp);
+	ldebug("Releasing protocol storage: %s", proto->name);
+	proto->flush(proto->priv);
+	proto->free(proto->priv);
+	free(proto);
 }
 
-int tlvp_flush(struct tlv_protocol *tlvp)
+int eeprom_flush(struct storage_protocol *proto)
 {
-	ldebug("Flushing protocol storage: %s", tlvp->name);
-	return tlvp->flush(tlvp->priv);
+	ldebug("Flushing protocol storage: %s", proto->name);
+	return proto->flush(proto->priv);
 }
 
-void tlvp_eeprom_list(struct tlv_protocol *tlvp)
+void eeprom_list(struct storage_protocol *proto)
 {
-	tlvp->list();
+	proto->list();
 }
 
-int tlvp_eeprom_check(struct tlv_protocol *tlvp, char *key, char *in)
+int eeprom_check(struct storage_protocol *proto, char *key, char *in)
 {
 	if (!key)
 		return -1;
 
-	return tlvp->check(key, in);
+	return proto->check(key, in);
 }
 
-int tlvp_eeprom_import(struct tlv_protocol *tlvp, char *key, char *in)
+int eeprom_import(struct storage_protocol *proto, char *key, char *in)
 {
 	if (!key || !in)
 		return -1;
 
-	return tlvp->store(tlvp->priv, key, in);
+	return proto->store(proto->priv, key, in);
 }
 
-int tlvp_eeprom_export(struct tlv_protocol *tlvp, char *key, char *out)
+int eeprom_export(struct storage_protocol *proto, char *key, char *out)
 {
-	return tlvp->print(tlvp->priv, key, out);
+	return proto->print(proto->priv, key, out);
 }

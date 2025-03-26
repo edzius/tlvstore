@@ -27,8 +27,8 @@ struct params_list {
 };
 
 static struct params_list *pl;
-static struct tlv_device *tlvd;
-static struct tlv_protocol *tlvp;
+static struct storage_device *dev;
+static struct storage_protocol *proto;
 static int op;
 
 int tlvstore_parse_line(char *arg)
@@ -45,7 +45,7 @@ int tlvstore_parse_line(char *arg)
 
 	ldebug("Parsed parameter: '%s' = '%s'", key, val);
 
-	if (tlvp_eeprom_check(tlvp, key, op == OP_SET ? val : NULL)) {
+	if (eeprom_check(proto, key, op == OP_SET ? val : NULL)) {
 		lerror("Invalid EEPROM param '%s'", arg);
 		free(key);
 		return 1;
@@ -132,13 +132,13 @@ int tlvstore_export_params(void)
 
 	if (!pl) {
 		ldebug("Exporting all TLV properties");
-		fail = tlvp_eeprom_export(tlvp, NULL, NULL);
+		fail = eeprom_export(proto, NULL, NULL);
 	} else {
 		ldebug("Starting parameters export");
 	}
 
 	while (pl) {
-		if (tlvp_eeprom_export(tlvp, pl->key, pl->val) < 0) {
+		if (eeprom_export(proto, pl->key, pl->val) < 0) {
 			if (pl->val)
 				lerror("Failed to export '%s' to '%s'",
 				       pl->key, pl->val);
@@ -162,7 +162,7 @@ int tlvstore_import_params(void)
 
 	ldebug("Starting parameters import");
 	while (pl) {
-		if (tlvp_eeprom_import(tlvp, pl->key, pl->val) < 0) {
+		if (eeprom_import(proto, pl->key, pl->val) < 0) {
 			lerror("Failed to import '%s' value '%s'", pl->key, pl->val);
 			fail++;
 		}
@@ -178,7 +178,7 @@ int tlvstore_import_params(void)
 void tlvstore_list_properties(void)
 {
 	ldebug("Listing TLV properties");
-	tlvp_eeprom_list(tlvp);
+	eeprom_list(proto);
 }
 
 static void tlvstore_usage(void)
@@ -245,27 +245,27 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	tlvd = tlvd_open(store_file, store_size);
-	if (!tlvd) {
+	dev = storage_open(store_file, store_size);
+	if (!dev) {
 		fprintf(stderr, "Failed to initialize '%s' storage file\n", store_file);
 		exit(EXIT_FAILURE);
 	}
 
-	ldebug("Opened storage memory file %s at %p, size: %zi", store_file, tlvd->base, tlvd->size);
+	ldebug("Opened storage memory file %s at %p, size: %zi", store_file, dev->base, dev->size);
 
-	tlvp = tlvp_init(tlvd, force);
-	if (!tlvp) {
+	proto = eeprom_init(dev, force);
+	if (!proto) {
 		fprintf(stderr, "Unknown storage protocol for '%s'\n", store_file);
-		tlvd_close(tlvd);
+		storage_close(dev);
 		exit(EXIT_FAILURE);
 	}
 
-	ldebug("Initialized storage protocol '%s'", tlvp->name);
+	ldebug("Initialized storage protocol '%s'", proto->name);
 
 	if (tlvstore_parse_params(argc - optind, &argv[optind])) {
 		tlvstore_usage();
-		tlvp_free(tlvp);
-		tlvd_close(tlvd);
+		eeprom_free(proto);
+		storage_close(dev);
 		exit(EXIT_FAILURE);
 	}
 
@@ -282,11 +282,11 @@ int main(int argc, char *argv[])
 		linfo("No operation specified");
 	}
 
-	tlvp_free(tlvp);
+	eeprom_free(proto);
 
-	tlvd_close(tlvd);
+	storage_close(dev);
 
-	tlvp_unregister();
+	eeprom_unregister();
 
 	return ret;
 }

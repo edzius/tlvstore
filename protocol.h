@@ -1,14 +1,14 @@
-#ifndef __TLV_PROTOCOL_H
-#define __TLV_PROTOCOL_H
+#ifndef __STORAGE_PROTOCOL_H
+#define __STORAGE_PROTOCOL_H
 
 #include "char.h"
 
-struct tlv_protocol {
+struct storage_protocol {
 	const char *name;
 	int def;
 	void *priv;
 
-	void *(*init)(struct tlv_device *tlvd, int force);
+	void *(*init)(struct storage_device *dev, int force);
 	void (*free)(void *sp);
 	void (*list)(void);
 	int (*check)(char *key, char *val);
@@ -17,14 +17,14 @@ struct tlv_protocol {
 	int (*flush)(void *sp);
 };
 
-int tlvp_register(struct tlv_protocol *tlvp);
-void tlvp_unregister(void);
-struct tlv_protocol *tlvp_init(struct tlv_device *tlvd, int force);
-void tlvp_free(struct tlv_protocol *tlvp);
-int tlvp_eeprom_flush(struct tlv_protocol *tlvp);
-void tlvp_eeprom_list(struct tlv_protocol *tlvp);
-int tlvp_eeprom_check(struct tlv_protocol *tlvp, char *key, char *val);
-int tlvp_eeprom_import(struct tlv_protocol *tlvp, char *key, char *in);
-int tlvp_eeprom_export(struct tlv_protocol *tlvp, char *key, char *out);
+int eeprom_register(struct storage_protocol *proto);
+void eeprom_unregister(void);
+struct storage_protocol *eeprom_init(struct storage_device *dev, int force);
+void eeprom_free(struct storage_protocol *proto);
+int eeprom_flush(struct storage_protocol *proto);
+void eeprom_list(struct storage_protocol *proto);
+int eeprom_check(struct storage_protocol *proto, char *key, char *val);
+int eeprom_import(struct storage_protocol *proto, char *key, char *in);
+int eeprom_export(struct storage_protocol *proto, char *key, char *out);
 
-#endif /* __TLV_PROTOCOL_H */
+#endif /* __STORAGE_PROTOCOL_H */

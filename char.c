@@ -10,25 +10,25 @@
 #include "log.h"
 #include "char.h"
 
-void tlvd_close(struct tlv_device *tlvd)
+void storage_close(struct storage_device *dev)
 {
-	fsync(tlvd->fd);
-	if (munmap(tlvd->base, tlvd->size))
+	fsync(dev->fd);
+	if (munmap(dev->base, dev->size))
 		perror("munmap() failed");
-	close(tlvd->fd);
+	close(dev->fd);
 }
 
-struct tlv_device *tlvd_open(const char *file_name, int pref_size)
+struct storage_device *storage_open(const char *file_name, int pref_size)
 {
-	struct tlv_device *tlvd;
+	struct storage_device *dev;
 	struct stat fs;
 	int fd = -1;
 	int file_init, file_size, last_size;
 
 	ldebug("Opening storage memory file %s, preferred size: %d", file_name, pref_size);
 
-	tlvd = malloc(sizeof(*tlvd));
-	if (!tlvd) {
+	dev = malloc(sizeof(*dev));
+	if (!dev) {
 		perror("malloc() failed");
 		return NULL;
 	}
@@ -59,22 +59,22 @@ struct tlv_device *tlvd_open(const char *file_name, int pref_size)
 		goto fail;
 	}
 
-	tlvd->fd = fd;
-	tlvd->size = file_size;
-	tlvd->base = mmap(NULL, file_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-	if (tlvd->base == MAP_FAILED) {
+	dev->fd = fd;
+	dev->size = file_size;
+	dev->base = mmap(NULL, file_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+	if (dev->base == MAP_FAILED) {
 		perror("mmap() failed");
 		goto fail;
 	}
 
 	last_size = fs.st_size;
 	while (last_size < pref_size)
-		((char *)tlvd->base)[last_size++] = 0xFF;
+		((char *)dev->base)[last_size++] = 0xFF;
 
-	return tlvd;
+	return dev;
 fail:
-	if (tlvd)
-		free(tlvd);
+	if (dev)
+		free(dev);
 	if (fd != -1)
 		close(fd);
 	if (file_init)

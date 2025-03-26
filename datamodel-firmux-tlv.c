@@ -674,26 +674,26 @@ static void firmux_tlv_free(void *sp)
 	tlvs_free((struct tlv_store *)sp);
 }
 
-static void *firmux_tlv_init(struct tlv_device *tlvd, int force)
+static void *firmux_tlv_init(struct storage_device *dev, int force)
 {
 	struct tlv_header *tlvh;
 	struct tlv_store *tlvs;
 	int empty, len = 0;
 	unsigned int crc;
 
-	if (tlvd->size <= sizeof(*tlvh)) {
-		lerror("Storage is too small %zu/%zu", tlvd->size, sizeof(*tlvh));
+	if (dev->size <= sizeof(*tlvh)) {
+		lerror("Storage is too small %zu/%zu", dev->size, sizeof(*tlvh));
 		return NULL;
 	}
 
-	tlvh = tlvd->base;
+	tlvh = dev->base;
 	if (!strncmp(tlvh->magic, EEPROM_MAGIC, sizeof(tlvh->magic)) &&
 	    tlvh->version == EEPROM_VERSION)
 		goto done;
 
 	empty = 1;
 	while (len < sizeof(*tlvh)) {
-		if (((unsigned char *)tlvd->base)[len] != 0xFF) {
+		if (((unsigned char *)dev->base)[len] != 0xFF) {
 			empty = 0;
 			break;
 		}
@@ -712,20 +712,20 @@ static void *firmux_tlv_init(struct tlv_device *tlvd, int force)
 	}
 
 done:
-	crc = crc_32(tlvd->base + sizeof(*tlvh), tlvh->len);
+	crc = crc_32(dev->base + sizeof(*tlvh), tlvh->len);
 	if (crc != tlvh->crc) {
 		lerror("Invalid storage crc\n");
 		return NULL;
 	}
 
-	tlvs = tlvs_init(tlvd->base + sizeof(*tlvh), tlvd->size - sizeof(*tlvh));
+	tlvs = tlvs_init(dev->base + sizeof(*tlvh), dev->size - sizeof(*tlvh));
 	if (!tlvs)
 		lerror("Failed to initialize TLV store");
 
 	return tlvs;
 }
 
-static struct tlv_protocol firmux_tlv_model = {
+static struct storage_protocol firmux_tlv_model = {
 	.name = "firmux-tlv",
 	.def = 1,
 	.init = firmux_tlv_init,
@@ -739,5 +739,5 @@ static struct tlv_protocol firmux_tlv_model = {
 
 static void __attribute__((constructor)) firmux_tlv_register(void)
 {
-	tlvp_register(&firmux_tlv_model);
+	eeprom_register(&firmux_tlv_model);
 }

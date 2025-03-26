@@ -221,25 +221,25 @@ static void firmux_fields_free(void *sp)
 {
 }
 
-static void *firmux_fields_init(struct tlv_device *cdev, int force)
+static void *firmux_fields_init(struct storage_device *dev, int force)
 {
 	struct firmux_header *fh;
 	int empty, idx = 0;
 	unsigned int crc;
 
-	if (cdev->size <= sizeof(*fh) + sizeof(struct firmux_fields)) {
-		lerror("Storage is too small %zu/%zu", cdev->size,
+	if (dev->size <= sizeof(*fh) + sizeof(struct firmux_fields)) {
+		lerror("Storage is too small %zu/%zu", dev->size,
 			   sizeof(*fh) + sizeof(struct firmux_fields));
 		return NULL;
 	}
 
-	fh = cdev->base;
+	fh = dev->base;
 	if (!strncmp(fh->magic, EEPROM_MAGIC, sizeof(fh->magic)))
 		goto done;
 
 	empty = 1;
 	while (idx < sizeof(*fh)) {
-		if (((unsigned char *)cdev->base)[idx] != 0xFF) {
+		if (((unsigned char *)dev->base)[idx] != 0xFF) {
 			empty = 0;
 			break;
 		}
@@ -251,23 +251,23 @@ static void *firmux_fields_init(struct tlv_device *cdev, int force)
 			ldebug("Reinitialising non-empty storage");
 		memset(fh, 0, sizeof(*fh));
 		memcpy(fh->magic, EEPROM_MAGIC, sizeof(fh->magic));
-		fh->crc = crc_32(cdev->base + sizeof(*fh), sizeof(struct firmux_fields));
+		fh->crc = crc_32(dev->base + sizeof(*fh), sizeof(struct firmux_fields));
 	} else {
 		ldebug("Unknown storage signature");
 		return NULL;
 	}
 
 done:
-	crc = crc_32(cdev->base + sizeof(*fh), sizeof(struct firmux_fields));
+	crc = crc_32(dev->base + sizeof(*fh), sizeof(struct firmux_fields));
 	if (crc != fh->crc) {
 		lerror("Invalid storage crc\n");
 		return NULL;
 	}
 
-	return cdev->base + sizeof(*fh);
+	return dev->base + sizeof(*fh);
 }
 
-static struct tlv_protocol firmux_fields_model = {
+static struct storage_protocol firmux_fields_model = {
 	.name = "firmux-fields",
 	.init = firmux_fields_init,
 	.free = firmux_fields_free,
@@ -280,5 +280,5 @@ static struct tlv_protocol firmux_fields_model = {
 
 static void __attribute__((constructor)) firmux_fields_register(void)
 {
-	tlvp_register(&firmux_fields_model);
+	eeprom_register(&firmux_fields_model);
 }

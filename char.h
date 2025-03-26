@@ -1,13 +1,13 @@
-#ifndef __TLV_DEVICE_H
-#define __TLV_DEVICE_H
+#ifndef __CHAR_DEVICE_H
+#define __CHAR_DEVICE_H
 
-struct tlv_device {
+struct storage_device {
 	int fd;
 	void *base;
 	size_t size;
 };
 
-struct tlv_device *tlvd_open(const char *file_name, int pref_size);
-void tlvd_close(struct tlv_device *tlvd);
+struct storage_device *storage_open(const char *file_name, int pref_size);
+void storage_close(struct storage_device *dev);
 
-#endif /* __TLV_DEVICE_H */
+#endif /* __CHAR_DEVICE_H */
