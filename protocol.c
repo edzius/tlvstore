@@ -99,19 +99,26 @@ struct storage_protocol *eeprom_init(struct storage_device *dev, int force)
 void eeprom_free(struct storage_protocol *proto)
 {
 	ldebug("Releasing protocol storage: %s", proto->name);
-	proto->flush(proto->priv);
+	if (proto->flush)
+		proto->flush(proto->priv);
 	proto->free(proto->priv);
 	free(proto);
 }
 
 int eeprom_flush(struct storage_protocol *proto)
 {
+	if (!proto->flush)
+		return 1;
+
 	ldebug("Flushing protocol storage: %s", proto->name);
 	return proto->flush(proto->priv);
 }
 
 void eeprom_list(struct storage_protocol *proto)
 {
+	if (!proto->list)
+		return;
+
 	proto->list();
 }
 
@@ -119,6 +126,9 @@ int eeprom_check(struct storage_protocol *proto, char *key, char *in)
 {
 	if (!key)
 		return -1;
+
+	if (!proto->check)
+		return 1;
 
 	return proto->check(key, in);
 }
@@ -128,10 +138,16 @@ int eeprom_import(struct storage_protocol *proto, char *key, char *in)
 	if (!key || !in)
 		return -1;
 
+	if (!proto->store)
+		return 1;
+
 	return proto->store(proto->priv, key, in);
 }
 
 int eeprom_export(struct storage_protocol *proto, char *key, char *out)
 {
+	if (!proto->print)
+		return 1;
+
 	return proto->print(proto->priv, key, out);
 }
