@@ -26,7 +26,7 @@ clean:
 install: tlvs
 	install -Dm755 tlvs $(PREFIX)/usr/bin/tlvs
 
-tlvs: datamodel-firmux-struct.o datamodel-firmux-fields.o datamodel-firmux-tlv.o protocol.o char.o tlv.o utils.o crc.o main.o
+tlvs: datamodel-firmux-struct.o datamodel-firmux-fields.o datamodel-firmux-tlv.o datamodel-legacy-tlv.o protocol.o char.o tlv.o utils.o crc.o main.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
@@ -41,3 +41,4 @@ crc.o: crc.c
 datamodel-firmux-struct.o: datamodel-firmux-struct.c
 datamodel-firmux-fields.o: datamodel-firmux-fields.c
 datamodel-firmux-tlv.o: datamodel-firmux-tlv.c
+datamodel-legacy-tlv.o: datamodel-legacy-tlv.c
