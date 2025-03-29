@@ -4,13 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "tlv.h"
 
 #define TLV_EMPTY 0xFF
 #define TLV_PAD 0x00
 
-#define TLV_PROPS(tlv) tlv->type, tlv->length, ((void *)tlv - (void *)tlvs->base)
+#define TLV_PROPS(tlv) tlv->type, ntohs(tlv->length), ((void *)tlv - (void *)tlvs->base)
 
 #ifdef DEBUG
 #define TLV_DEBUG(op, tlv) fprintf(stderr, op " TLV[%x] data # %i @ 0x%02lx\n", TLV_PROPS(tlv))
@@ -71,7 +72,7 @@ void tlvs_optimise(struct tlv_store *tlvs)
 			curr++;
 			continue;
 		}
-		count = tlv->length + sizeof(struct tlv_field);
+		count = ntohs(tlv->length) + sizeof(struct tlv_field);
 		if (save != curr) {
 			memcpy(save, curr, count);
 		}
@@ -119,7 +120,7 @@ static struct tlv_field *tlvs_gap(struct tlv_store *tlvs, uint16_t length)
 				break;
 			continue;
 		}
-		curr += tlv->length + sizeof(struct tlv_field);
+		curr += ntohs(tlv->length) + sizeof(struct tlv_field);
 	}
 
 	return gap ? gap : tlv;
@@ -144,7 +145,7 @@ static struct tlv_field *tlvs_find(struct tlv_store *tlvs, uint8_t type)
 			curr++;
 			continue;
 		}
-		curr += tlv->length + sizeof(struct tlv_field);
+		curr += ntohs(tlv->length) + sizeof(struct tlv_field);
 	}
 
 	return NULL;
@@ -159,7 +160,7 @@ static int tlvs_add_tail(struct tlv_store *tlvs, uint8_t type, uint16_t length, 
 		return -ENOSPC;
 
 	tlv->type = type;
-	tlv->length = length;
+	tlv->length = htons(length);
 	memcpy(tlv->value, value, length);
 	tlvs->dirty = 1;
 	TLV_DEBUG("New", tlv);
@@ -189,7 +190,7 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 	if (!tlv)
 		return tlvs_add_tail(tlvs, type, length, value);
 
-	if (tlv->length == length) {
+	if (ntohs(tlv->length) == length) {
 		memcpy(tlv->value, value, length);
 		tlvs->dirty = 1;
 		TLV_DEBUG("Set", tlv);
@@ -198,10 +199,10 @@ int tlvs_set(struct tlv_store *tlvs, uint8_t type, uint16_t length, void *value)
 
 	tlvs->frag = 1;
 
-	memset(tlv->value, TLV_PAD, tlv->length);
+	memset(tlv->value, TLV_PAD, ntohs(tlv->length));
 	if (tlv->length > length) {
 		memcpy(tlv->value, value, length);
-		tlv->length = length;
+		tlv->length = htons(length);
 		tlvs->dirty = 1;
 		TLV_DEBUG("Set", tlv);
 		return 0;
@@ -223,7 +224,7 @@ int tlvs_del(struct tlv_store *tlvs, uint8_t type)
 
 	tlvs->frag = 1;
 	tlvs->dirty = 1;
-	memset(tlv, TLV_PAD, sizeof(*tlv) + tlv->length);
+	memset(tlv, TLV_PAD, sizeof(*tlv) + ntohs(tlv->length));
 	TLV_DEBUG("Delete", tlv);
 	return 0;
 }
@@ -243,20 +244,21 @@ size_t tlvs_len(struct tlv_store *tlvs)
 ssize_t tlvs_get(struct tlv_store *tlvs, uint8_t type, int len, char *buf)
 {
 	struct tlv_field *tlv;
-	int cnt;
+	int cnt, flen;
 
 	tlv = tlvs_find(tlvs, type);
 	if (!tlv)
 		return -1;
 
+	flen = ntohs(tlv->length);
 	if (!buf)
-		return tlv->length;
+		return flen;
 
-	cnt = len < tlv->length ? len : tlv->length;
+	cnt = len < flen ? len : flen;
 	memcpy(buf, tlv->value, cnt);
 	/* ASCII termination when tailroom is available */
-	if (len > tlv->length)
-		buf[tlv->length] = '\0';
+	if (len > flen)
+		buf[flen] = '\0';
 
 	return cnt;
 }
@@ -271,11 +273,11 @@ void tlvs_dump(struct tlv_store *tlvs)
 
 	while ((tlv = tlvs_iter_next(&iter)) != NULL) {
 		printf("TLV[%x] data # %i @ 0x%02lx: ", TLV_PROPS(tlv));
-		for (i = 0; i < tlv->length; i++) {
+		for (i = 0; i < ntohs(tlv->length); i++) {
 			printf("0x%02x ", tlv->value[i]);
 		}
 		printf("| ");
-		for (i = 0; i < tlv->length; i++) {
+		for (i = 0; i < ntohs(tlv->length); i++) {
 			printf("%c", (tlv->value[i] > 31 &&
 				      tlv->value[i] < 127) ?
 			       tlv->value[i] : '.');
@@ -315,7 +317,7 @@ struct tlv_field *tlvs_iter_next(struct tlv_iterator *iter)
 		}
 
 		/* Move cursor to next entry for subsequent calls */
-		iter->curr += tlv->length + sizeof(struct tlv_field);
+		iter->curr += ntohs(tlv->length) + sizeof(struct tlv_field);
 
 		return tlv;
 	}

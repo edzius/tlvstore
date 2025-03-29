@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 #ifdef HAVE_LZMA_H
 #include <lzma.h>
 #endif
@@ -444,7 +445,7 @@ static struct tlv_group *firmux_tlv_param_format(struct tlv_field *tlv, char **k
 		return NULL;
 
 	if (key) {
-		if (tlvg->tlvg_format(NULL, tlv->value, tlv->length, &param) < 0)
+		if (tlvg->tlvg_format(NULL, tlv->value, ntohs(tlv->length), &param) < 0)
 			return NULL;
 		*key = malloc(strlen(tlvg->tlvg_pattern) + strlen(param) + 2);
 		if (!*key)
@@ -537,7 +538,7 @@ static int firmux_tlv_print_all(struct tlv_store *tlvs)
 		key = NULL;
 
 		if ((tlvg = firmux_tlv_param_format(tlv, &key))) {
-			len = tlvg->tlvg_format((void **)&val, tlv->value, tlv->length, NULL);
+			len = tlvg->tlvg_format((void **)&val, tlv->value, ntohs(tlv->length), NULL);
 			if (len < 0) {
 				lerror("Failed to format TLV param %s", key);
 				fail++;
@@ -545,7 +546,7 @@ static int firmux_tlv_print_all(struct tlv_store *tlvs)
 			}
 			spec = tlvg->tlvg_spec;
 		} else if ((tlvp = firmux_tlv_prop_format(tlv, &key))) {
-			len = tlvp->tlvp_format((void **)&val, tlv->value, tlv->length);
+			len = tlvp->tlvp_format((void **)&val, tlv->value, ntohs(tlv->length));
 			if (len < 0) {
 				lerror("Failed to format TLV param %s", key);
 				fail++;
@@ -659,11 +660,13 @@ static int firmux_tlv_flush(void *sp)
 {
 	struct tlv_store *tlvs = sp;
 	struct tlv_header *tlvh = tlvs->base - sizeof(*tlvh);
+	int len;
 
 	if (tlvs->dirty) {
-		tlvh->len = tlvs_len(sp);
-		tlvh->crc = crc_32(tlvs->base, tlvh->len);
+		len = tlvs_len(sp);
 		tlvs->dirty = 0;
+		tlvh->len = htonl(len);
+		tlvh->crc = htonl(crc_32(tlvs->base, len));
 	}
 
 	return 0;
@@ -712,8 +715,8 @@ static void *firmux_tlv_init(struct storage_device *dev, int force)
 	}
 
 done:
-	crc = crc_32(dev->base + sizeof(*tlvh), tlvh->len);
-	if (crc != tlvh->crc) {
+	crc = crc_32(dev->base + sizeof(*tlvh), ntohl(tlvh->len));
+	if (crc != ntohl(tlvh->crc)) {
 		lerror("Invalid storage crc\n");
 		return NULL;
 	}

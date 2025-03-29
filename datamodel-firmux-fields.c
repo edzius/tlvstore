@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "crc.h"
 
@@ -208,10 +209,12 @@ static void firmux_fields_prop_list(void)
 static int firmux_fields_flush(void *sp)
 {
 	struct firmux_header *fh = sp - sizeof(*fh);
+	unsigned int crc;
 
 	if (dirty) {
-		fh->crc = crc_32(sp, sizeof(struct firmux_fields));
 		dirty = 0;
+		crc = crc_32(sp, sizeof(struct firmux_fields));
+		fh->crc = htonl(crc);
 	}
 
 	return 0;
@@ -251,7 +254,8 @@ static void *firmux_fields_init(struct storage_device *dev, int force)
 			ldebug("Reinitialising non-empty storage");
 		memset(fh, 0, sizeof(*fh));
 		memcpy(fh->magic, EEPROM_MAGIC, sizeof(fh->magic));
-		fh->crc = crc_32(dev->base + sizeof(*fh), sizeof(struct firmux_fields));
+		crc = crc_32(dev->base + sizeof(*fh), sizeof(struct firmux_fields));
+		fh->crc = htonl(crc);
 	} else {
 		ldebug("Unknown storage signature");
 		return NULL;
@@ -259,7 +263,7 @@ static void *firmux_fields_init(struct storage_device *dev, int force)
 
 done:
 	crc = crc_32(dev->base + sizeof(*fh), sizeof(struct firmux_fields));
-	if (crc != fh->crc) {
+	if (crc != ntohl(fh->crc)) {
 		lerror("Invalid storage crc\n");
 		return NULL;
 	}
