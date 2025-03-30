@@ -7,6 +7,9 @@
 #include <ctype.h>
 #include <string.h>
 #include <arpa/inet.h>
+#ifdef HAVE_LZMA_H
+#include <lzma.h>
+#endif
 
 #include "crc.h"
 #include "log.h"
@@ -122,6 +125,91 @@ static int data_dump(const char *key, void *val, int len, enum tlv_spec type)
 	}
 }
 
+#ifdef HAVE_LZMA_H
+static ssize_t decompress_bin(void **data_out, void *data_in, size_t size_in)
+{
+	lzma_stream strm = LZMA_STREAM_INIT;
+	lzma_ret ret;
+	unsigned char *out_tmp, *out_buf;
+	size_t out_next, out_size;
+	size_t size_out = 0, size_inc = size_in * 4;
+
+	out_size = size_inc;
+	out_buf = malloc(out_size);
+	if (!out_buf)
+		return -1;
+
+	ret = lzma_auto_decoder(&strm, UINT64_MAX, 0);
+	if (ret != LZMA_OK) {
+		ldebug("Failed to initialize LZMA decoder, error code: %d", ret);
+		free(out_buf);
+		return -1;
+	}
+
+	strm.next_in = data_in;
+	strm.avail_in = size_in;
+	strm.next_out = out_buf;
+	strm.avail_out = out_size;
+
+	while (1) {
+		if (strm.avail_out == 0) {
+			out_next = out_size + size_inc;
+			out_tmp = realloc(out_buf, out_next);
+			if (!out_tmp) {
+				perror("realloc() failed");
+				lzma_end(&strm);
+				free(out_buf);
+				return -1;
+			}
+			strm.next_out = out_tmp + out_size;
+			strm.avail_out = size_inc;
+			out_buf = out_tmp;
+			out_size = out_next;
+		}
+
+		ret = lzma_code(&strm, LZMA_RUN);
+		if (ret == LZMA_STREAM_END) {
+			size_out = out_size - strm.avail_out;
+			break;
+		}
+		if (ret != LZMA_OK) {
+			/* Error occurred */
+			ldebug("LZMA decompression error: %d", ret);
+			lzma_end(&strm);
+			free(out_buf);
+			return -1;
+		}
+	}
+
+	lzma_end(&strm);
+
+	out_tmp = realloc(out_buf, size_out);
+	if (!out_tmp) {
+		free(out_buf);
+		return -1;
+	}
+
+	*data_out = out_tmp;
+	return size_out;
+}
+#else
+static ssize_t decompress_bin(void **data_out, void *data_in, size_t size_in)
+{
+	void *out_buf;
+	size_t out_size = size_in;
+
+	out_buf = realloc(*data_out, out_size);
+	if (!out_buf) {
+		perror("realloc() failed");
+		return -1;
+	}
+	memcpy(out_buf, data_in, size_in);
+
+	*data_out = out_buf;
+	return out_size;
+}
+#endif
+
 static int legacy_tlv_prop_check(char *key, char *in)
 {
 	int i;
@@ -147,6 +235,8 @@ static int legacy_tlv_prop_print_all(void *sp)
 	struct tlv_field *tlv;
 	enum tlv_spec spec;
 	char *key = NULL, *val = NULL;
+	char *cval = NULL;
+	ssize_t cval_len;
 	ssize_t key_len = 0, val_len = 0;
 	size_t tmp_len, len;
 	int i;
@@ -184,6 +274,26 @@ static int legacy_tlv_prop_print_all(void *sp)
 				(unsigned char)tlv->value[2], (unsigned char)tlv->value[3],
 				(unsigned char)tlv->value[4], (unsigned char)tlv->value[5]);
 			data_dump(key, val, val_len, INPUT_SPEC_TXT);
+		} else if (tlv->type == EEPROM_ATTR_RADIO_CALIBRATION_DATA) {
+			for (i = 0; i < ARRAY_SIZE(tlv_code_list); i++) {
+				if (tlv->type == tlv_code_list[i].m_code) {
+					if (key_len) {
+						free(key);
+						key_len = 0;
+					}
+					key = tlv_code_list[i].m_name;
+					break;
+				}
+			}
+
+			cval_len = decompress_bin((void *)&cval, tlv->value, len);
+			if (cval_len < 0) {
+				lerror("Failed to decompress caldata");
+				continue;
+			}
+
+			data_dump(key, cval, cval_len, INPUT_SPEC_BIN);
+			free(cval);
 		} else {
 			for (i = 0; i < ARRAY_SIZE(tlv_code_list); i++) {
 				if (tlv->type == tlv_code_list[i].m_code) {
@@ -285,6 +395,12 @@ static int legacy_tlv_prop_print(void *sp, char *key, char *out)
 				return -1;
 			}
 			strncpy(val, buf, len);
+		} else if (type == EEPROM_ATTR_RADIO_CALIBRATION_DATA) {
+			len = decompress_bin((void *)&val, buf, len);
+			if (len < 0) {
+				lerror("Failed to decompress caldata");
+				return -1;
+			}
 		} else {
 			val = realloc(val, len);
 			if (!val) {
