@@ -105,9 +105,10 @@ static ssize_t tlvp_compress_bin(void **data_out, void *data_in, size_t size_in)
 	lzma_ret ret;
 	uint32_t preset = TLVS_DEFAULT_COMPRESSION;
 	unsigned char *out_tmp, *out_buf;
-	size_t out_next, out_size = size_in;
-	size_t size_out = 0;
+	size_t out_next, out_size;
+	size_t size_out = 0, size_inc = size_in;
 
+	out_size = size_inc;
 	if (!data_out)
 		return out_size;
 
@@ -129,7 +130,7 @@ static ssize_t tlvp_compress_bin(void **data_out, void *data_in, size_t size_in)
 
 	while (1) {
 		if (strm.avail_out == 0) {
-			out_next = out_size * 2;
+			out_next = out_size + size_inc;
 			out_tmp = realloc(out_buf, out_next);
 			if (!out_tmp) {
 				perror("realloc() failed");
@@ -137,9 +138,9 @@ static ssize_t tlvp_compress_bin(void **data_out, void *data_in, size_t size_in)
 				free(out_buf);
 				return -1;
 			}
+			strm.next_out = out_tmp + out_size;
+			strm.avail_out = size_inc;
 			out_buf = out_tmp;
-			strm.next_out = out_buf + out_size;
-			strm.avail_out = out_size;
 			out_size = out_next;
 		}
 
@@ -174,9 +175,10 @@ static ssize_t tlvp_decompress_bin(void **data_out, void *data_in, size_t size_i
 	lzma_stream strm = LZMA_STREAM_INIT;
 	lzma_ret ret;
 	unsigned char *out_tmp, *out_buf;
-	size_t out_next, out_size = size_in * 4;
-	size_t size_out = 0;
+	size_t out_next, out_size;
+	size_t size_out = 0, size_inc = size_in * 4;
 
+	out_size = size_inc;
 	if (!data_out)
 		return out_size;
 
@@ -198,7 +200,7 @@ static ssize_t tlvp_decompress_bin(void **data_out, void *data_in, size_t size_i
 
 	while (1) {
 		if (strm.avail_out == 0) {
-			out_next = out_size * 2;
+			out_next = out_size + size_inc;
 			out_tmp = realloc(out_buf, out_next);
 			if (!out_tmp) {
 				perror("realloc() failed");
@@ -206,9 +208,10 @@ static ssize_t tlvp_decompress_bin(void **data_out, void *data_in, size_t size_i
 				free(out_buf);
 				return -1;
 			}
+			strm.next_out = out_tmp + out_size;
+			strm.avail_out = size_inc;
 			out_buf = out_tmp;
-			strm.next_out = out_buf + out_size;
-			strm.avail_out = out_size;
+			out_size = out_next;
 		}
 
 		ret = lzma_code(&strm, LZMA_RUN);
