@@ -411,15 +411,16 @@ static int legacy_tlv_prop_print(void *sp, char *key, char *out)
 		}
 	}
 
-	if (out)
-		afwrite(out[0] == '@' ? out + 1 : out, val, len);
-	else
-		data_dump(key, val, len, spec);
+	if (val) {
+		if (out)
+			afwrite(out[0] == '@' ? out + 1 : out, val, len);
+		else
+			data_dump(key, val, len, spec);
 
-	if (val)
 		free(val);
+	}
 
-	return 0;
+	return val ? 0 : 1;
 }
 
 static void legacy_tlv_prop_list(void)
