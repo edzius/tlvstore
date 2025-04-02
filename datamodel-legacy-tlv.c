@@ -78,12 +78,12 @@ const struct tlv_code_desc tlv_code_list[] = {
 	{ EEPROM_ATTR_SERIAL_NO, "SERIAL_NO", INPUT_SPEC_TXT },
 	{ EEPROM_ATTR_PCB_NAME, "PCB_NAME", INPUT_SPEC_TXT },
 	{ EEPROM_ATTR_PCB_REVISION, "PCB_REVISION", INPUT_SPEC_TXT },
-	{ EEPROM_ATTR_PCB_PRDATE, "PCB_PRDATE", INPUT_SPEC_TXT },
-	{ EEPROM_ATTR_PCB_PRLOCATION, "PCB_PRLOCATION", INPUT_SPEC_TXT },
+	{ EEPROM_ATTR_PCB_PRDATE, "PCB_PROD_DATE", INPUT_SPEC_TXT },
+	{ EEPROM_ATTR_PCB_PRLOCATION, "PCB_PROD_LOCATION", INPUT_SPEC_TXT },
 	{ EEPROM_ATTR_PCB_SN, "PCB_SN", INPUT_SPEC_TXT },
-	{ EEPROM_ATTR_RADIO_CALIBRATION_DATA, "RADIO_CALDATA", INPUT_SPEC_BIN },
-	{ EEPROM_ATTR_XTAL_CALIBRATION_DATA, "XTAL_CALDATA", INPUT_SPEC_BIN },
-	{ EEPROM_ATTR_MAC, "MAC_ADDR", INPUT_SPEC_TXT },
+	{ EEPROM_ATTR_RADIO_CALIBRATION_DATA, "RADIO_CALIBRATION_DATA", INPUT_SPEC_BIN },
+	{ EEPROM_ATTR_XTAL_CALIBRATION_DATA, "XTAL_CALIBRATION_DATA", INPUT_SPEC_BIN },
+	{ EEPROM_ATTR_MAC, "GENERIC_MAC", INPUT_SPEC_TXT },
 };
 
 /*
@@ -215,8 +215,8 @@ static int legacy_tlv_prop_check(char *key, char *in)
 	int i;
 
 	/* Special case for MAC addresses with interface names */
-	if (strncmp(key, "MAC_ADDR_", 9) == 0) {
-		return strlen(key) <= 9;
+	if (strncmp(key, "GENERIC_MAC_", 12) == 0) {
+		return strlen(key) <= 12;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(tlv_code_list); i++) {
@@ -252,7 +252,7 @@ static int legacy_tlv_prop_print_all(void *sp)
 				fail = 1;
 				continue;
 			}
-			tmp_len = strlen("MAC_ADDR_") + len - 6 + 1;
+			tmp_len = strlen("GENERIC_MAC_") + len - 6 + 1;
 			key = realloc(key, tmp_len);
 			if (!key) {
 				perror("realloc() failed");
@@ -260,7 +260,7 @@ static int legacy_tlv_prop_print_all(void *sp)
 				continue;
 			}
 			key_len = tmp_len;
-			snprintf(key, key_len, "MAC_ADDR_%s", tlv->value + 6);
+			snprintf(key, key_len, "GENERIC_MAC_%s", tlv->value + 6);
 
 			val = realloc(val, 18);
 			if (!val) {
@@ -351,8 +351,8 @@ static int legacy_tlv_prop_print(void *sp, char *key, char *out)
 	if (!key)
 		return legacy_tlv_prop_print_all(sp);
 
-	if (strncmp(key, "MAC_ADDR_", 9) == 0) {
-		ifname = key + 9;
+	if (strncmp(key, "GENERIC_MAC_", 12) == 0) {
+		ifname = key + 12;
 
 		/* Iterate through all MAC address properties */
 		for (type = EEPROM_ATTR_MAC_FIRST; type <= EEPROM_ATTR_MAC_LAST; type++) {

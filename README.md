@@ -46,13 +46,13 @@ The solution is composed of 3 main parts:
   - SERIAL_NO - Serial number of the device
   - PCB_NAME - Name of the printed circuit board
   - PCB_REVISION - Revision number of the PCB
-  - PCB_PRDATE - Production date in YY-MM-DD format
-  - PCB_PRLOCATION - Production location identifier
+  - PCB_PROD_DATE - Production date in YY-MM-DD format
+  - PCB_PROD_LOCATION - Production location identifier
   - PCB_SN - Serial number of the PCB
-  - MAC_ADDR_* - MAC address for network interfaces, may be specified multiple
+  - GENERIC_ADDR_* - MAC address for network interfaces, may be specified multiple
     times for different interfaces
-  - XTAL_CALDATA - Board/radio XTAL calibration data
-  - RADIO_CALDATA - Radio calibration data
+  - XTAL_CALIBRATION_DATA - Board/radio XTAL calibration data
+  - RADIO_CALIBRATION_DATA - Radio calibration data
 
 ## Usage
 
