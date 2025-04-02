@@ -411,16 +411,21 @@ static int legacy_tlv_prop_print(void *sp, char *key, char *out)
 		}
 	}
 
-	if (val) {
-		if (out)
-			afwrite(out[0] == '@' ? out + 1 : out, val, len);
-		else
-			data_dump(key, val, len, spec);
-
-		free(val);
+	if (!val) {
+		lerror("Failed TLV property '%s' get", key);
+		return -1;
 	}
 
-	return val ? 0 : 1;
+	if (out && out[0] == '@')
+		afwrite(out + 1, val, len);
+	else if (out)
+		data_dump(out, val, len, spec);
+	else
+		data_dump(key, val, len, spec);
+
+	free(val);
+
+	return 0;
 }
 
 static void legacy_tlv_prop_list(void)

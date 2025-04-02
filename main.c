@@ -139,8 +139,11 @@ int tlvstore_export_params(void)
 
 	while (pl) {
 		if (eeprom_export(proto, pl->key, pl->val) < 0) {
-			if (pl->val)
+			if (pl->val && pl->val[0] == '@')
 				lerror("Failed to export '%s' to '%s'",
+				       pl->key, pl->val);
+			else if (pl->val)
+				lerror("Failed to export '%s' as '%s'",
 				       pl->key, pl->val);
 			else
 				lerror("Failed to export '%s'", pl->key);

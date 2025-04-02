@@ -197,8 +197,10 @@ static int firmux_struct_prop_print(void *sp, char *key, char *out)
 	if (!val)
 		return -1;
 
-	if (out)
-		afwrite(out[0] == '@' ? out + 1 : out, val, strlen(val));
+	if (out && out[0] == '@')
+		afwrite(out + 1, val, strlen(val));
+	else if (out)
+		data_dump(out, val, strlen(val));
 	else
 		data_dump(key, val, strlen(val));
 

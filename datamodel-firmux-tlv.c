@@ -631,8 +631,10 @@ static int firmux_tlv_prop_print(void *sp, char *key, char *out)
 		return -1;
 	}
 
-	if (out)
-		afwrite(out[0] == '@' ? out + 1 : out, val, len);
+	if (out && out[0] == '@')
+		afwrite(out + 1, val, len);
+	else if (out)
+		data_dump(out, val, len, spec);
 	else
 		data_dump(key, val, len, spec);
 
