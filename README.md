@@ -10,9 +10,9 @@ The solution is composed of 3 main parts:
 * Data types definitions
 * Demo storage application
 
-## Storages types
+## Storages types (data models)
 
-### Firmware EEPROM properties
+### TLV data model properties
 
   - PRODUCT_ID - Unique identifier for the product
   - PRODUCT_NAME - Human-readable product name
@@ -27,6 +27,32 @@ The solution is composed of 3 main parts:
   - XTAL_CALDATA - Board/radio XTAL calibration data
   - RADIO_CALDATA - Radio calibration data
   - RADIO_BRDDATA - Radio board data
+
+### Fixed fields structure data model properties
+
+  - PRODUCT_ID - Unique identifier for the product
+  - PRODUCT_NAME - Human-readable product name
+  - SERIAL_NO - Serial number of the device
+  - PCB_NAME - Name of the printed circuit board
+  - PCB_REVISION - Revision number of the PCB
+  - PCB_PRDATE - Production date in YY-MM-DD format
+  - PCB_PRLOCATION - Production location identifier
+  - PCB_SN - Serial number of the PCB
+  - MAC_ADDR - MAC address of device
+
+### Legacy TLV data model properties
+
+  - PRODUCT_ID - Unique identifier for the product
+  - SERIAL_NO - Serial number of the device
+  - PCB_NAME - Name of the printed circuit board
+  - PCB_REVISION - Revision number of the PCB
+  - PCB_PRDATE - Production date in YY-MM-DD format
+  - PCB_PRLOCATION - Production location identifier
+  - PCB_SN - Serial number of the PCB
+  - MAC_ADDR_* - MAC address for network interfaces, may be specified multiple
+    times for different interfaces
+  - XTAL_CALDATA - Board/radio XTAL calibration data
+  - RADIO_CALDATA - Radio calibration data
 
 ## Usage
 
@@ -130,7 +156,6 @@ When compression is enabled packages is linked against liblzma, therefore
 
 ## Next
 
-  - [ ] Add data checksum validation
   - [ ] Add more compression algorithms options
   - [ ] Add support for compressing all fields
   - [ ] Add bindings for python and LUA languages
