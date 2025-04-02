@@ -19,6 +19,33 @@ static int data_dump(const char *key, void *val, int len)
 	printf("%s=%s\n", key, (char *)val);
 }
 
+static int firmux_struct_prop_is_set(void *sp, char *key)
+{
+	struct firmux_fields *model = sp;
+
+	if (!strcmp(key, "PRODUCT_ID")) {
+		return !bempty_data(model->product_id, sizeof(model->product_id));
+	} else if (!strcmp(key, "PRODUCT_NAME")) {
+		return !bempty_data(model->product_name, sizeof(model->product_name));
+	} else if (!strcmp(key, "SERIAL_NO")) {
+		return !bempty_data(model->serial_no, sizeof(model->serial_no));
+	} else if (!strcmp(key, "PCB_NAME")) {
+		return !bempty_data(model->pcb_name, sizeof(model->pcb_name));
+	} else if (!strcmp(key, "PCB_REVISION")) {
+		return !bempty_data(model->pcb_revision, sizeof(model->pcb_revision));
+	} else if (!strcmp(key, "PCB_PRDATE")) {
+		return !bempty_data(model->pcb_prdate, sizeof(model->pcb_prdate));
+	} else if (!strcmp(key, "PCB_PRLOCATION")) {
+		return !bempty_data(model->pcb_prlocation, sizeof(model->pcb_prlocation));
+	} else if (!strcmp(key, "PCB_SN")) {
+		return !bempty_data(model->pcb_serial, sizeof(model->pcb_serial));
+	} else if (!strcmp(key, "MAC_ADDR")) {
+		return !bempty_data(model->mac_addr, sizeof(model->mac_addr));
+	} else {
+		return 0;
+	}
+}
+
 static int firmux_struct_prop_check(char *key, char *in)
 {
 	char *val = NULL;
@@ -192,6 +219,9 @@ static int firmux_struct_prop_print(void *sp, char *key, char *out)
 
 	if (!key)
 		return firmux_struct_prop_print_all(sp);
+
+	if (!firmux_struct_prop_is_set(sp, key));
+		return 1;
 
 	val = _firmux_struct_prop_print(sp, key);
 	if (!val)

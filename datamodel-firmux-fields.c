@@ -134,7 +134,7 @@ static int firmux_fields_prop_print(void *sp, char *key, char *out)
 		return -1;
 
 	if (!firmux_fields_prop_is_set(sp, pprop))
-		return -1;
+		return 1;
 
 	len = pprop->fp_format(&val, base + pprop->fp_offset, pprop->fp_size);
 	if (len < 0)

@@ -604,7 +604,7 @@ static int firmux_tlv_prop_print(void *sp, char *key, char *out)
 	size = tlvs_get(tlvs, code, 0, NULL);
 	if (size < 0) {
 		lerror("Failed TLV property '%s' get", key);
-		return -1;
+		return 1;
 	}
 
 	data = malloc(size);

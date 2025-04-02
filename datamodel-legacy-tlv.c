@@ -413,7 +413,7 @@ static int legacy_tlv_prop_print(void *sp, char *key, char *out)
 
 	if (!val) {
 		lerror("Failed TLV property '%s' get", key);
-		return -1;
+		return 1;
 	}
 
 	if (out && out[0] == '@')
