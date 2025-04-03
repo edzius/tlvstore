@@ -30,6 +30,7 @@ static struct params_list *pl;
 static struct storage_device *dev;
 static struct storage_protocol *proto;
 static int op;
+static int compat;
 
 int tlvstore_parse_line(char *arg)
 {
@@ -129,6 +130,7 @@ int tlvstore_export_params(void)
 {
 	struct params_list *pe = pl;
 	int fail = 0;
+	int ret;
 
 	if (!pl) {
 		ldebug("Exporting all TLV properties");
@@ -138,7 +140,8 @@ int tlvstore_export_params(void)
 	}
 
 	while (pl) {
-		if (eeprom_export(proto, pl->key, pl->val) < 0) {
+		ret = eeprom_export(proto, pl->key, pl->val);
+		if (ret < 0 || (!compat && ret)) {
 			if (pl->val && pl->val[0] == '@')
 				lerror("Failed to export '%s' to '%s'",
 				       pl->key, pl->val);
@@ -190,6 +193,7 @@ static void tlvstore_usage(void)
 			"  -F, --store-file <file-name>     Storage file path\n"
 			"  -S, --store-size <file-size>     Preferred storage file size\n"
 			"  -f, --force                      Force initialise storage\n"
+			"  -c, --compat                     Compatibility retrieve avilable params\n"
 			"  -g, --get                        Get specified keys or all keys when no specified\n"
 			"  -s, --set                        Set specified keys\n"
 			"  -l, --list                       List available keys\n"
@@ -201,6 +205,7 @@ static struct option tlvstore_options[] =
 	{ "store-size",   1, 0, 'S' },
 	{ "store-file",   1, 0, 'F' },
 	{ "force",        0, 0, 'f' },
+	{ "compat",       0, 0, 'c' },
 	{ "get",          0, 0, 'g' },
 	{ "set",          0, 0, 's' },
 	{ "list",         0, 0, 'l' },
@@ -215,7 +220,7 @@ int main(int argc, char *argv[])
 	int store_size = TLVS_DEFAULT_SIZE;
 	int force = 0;
 
-	while ((opt = getopt_long(argc, argv, "F:S:hfgsl", tlvstore_options, &index)) != -1) {
+	while ((opt = getopt_long(argc, argv, "F:S:hfcgsl", tlvstore_options, &index)) != -1) {
 		switch (opt) {
 		case 'F':
 			store_file = strdup(optarg);
@@ -225,6 +230,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'f':
 			force = 1;
+			break;
+		case 'c':
+			compat = 1;
 			break;
 		case 'g':
 			op = OP_GET;
